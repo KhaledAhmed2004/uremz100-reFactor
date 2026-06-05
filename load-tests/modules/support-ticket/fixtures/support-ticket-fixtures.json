@@ -1,0 +1,8 @@
+{
+  "tickets": [
+    { "id": "placeholder-ticket-1", "userId": "placeholder-user-1", "subject": "loadtest-ticket", "status": "open" }
+  ],
+  "ticketMessages": [
+    { "id": "placeholder-msg-1", "ticketId": "placeholder-ticket-1", "senderId": "placeholder-user-1" }
+  ]
+}

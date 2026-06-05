@@ -1,0 +1,7 @@
+{
+  "pages": [
+    { "slug": "terms-of-service", "title": "Terms of Service" },
+    { "slug": "privacy-policy", "title": "Privacy Policy" }
+  ],
+  "knownSlugs": ["terms-of-service", "privacy-policy", "cookie-policy", "acceptable-use", "disclaimer"]
+}

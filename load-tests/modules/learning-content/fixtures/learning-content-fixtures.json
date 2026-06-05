@@ -1,0 +1,8 @@
+{
+  "contents": [
+    { "id": "placeholder-content-1", "title": "loadtest-content-1", "type": "article" }
+  ],
+  "comments": [
+    { "id": "placeholder-comment-1", "contentId": "placeholder-content-1", "userId": "placeholder-user-1" }
+  ]
+}

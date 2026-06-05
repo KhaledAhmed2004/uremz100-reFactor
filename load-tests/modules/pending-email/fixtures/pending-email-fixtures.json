@@ -1,0 +1,5 @@
+{
+  "pendingEmails": [
+    { "id": "placeholder-email-1", "to": "loadtest-user@test.com", "subject": "loadtest email", "status": "pending" }
+  ]
+}
