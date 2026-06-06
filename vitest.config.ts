@@ -10,6 +10,7 @@ export default defineConfig({
     testTimeout: 30000,
     passWithNoTests: true,
     reporters: ['default', new PremiumReporter()],
+    setupFiles: ['./vitest.setup.ts'],
   },
 });
 

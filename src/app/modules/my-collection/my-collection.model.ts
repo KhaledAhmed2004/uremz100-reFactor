@@ -1,7 +1,8 @@
 import { Model, Schema, model, Types } from 'mongoose';
 
 export interface IMyCollection {
-  userId: Types.ObjectId;
+  userId?: Types.ObjectId;
+  guestId?: string;
   itemType: 'MOVIE' | 'SERIES' | 'SEASON' | 'EPISODE';
   itemId: Types.ObjectId;
   itemModel: 'Content' | 'Season' | 'Episode';
@@ -11,7 +12,8 @@ export type MyCollectionModel = Model<IMyCollection, Record<string, unknown>>;
 
 const myCollectionSchema = new Schema<IMyCollection>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, index: true },
+    guestId: { type: String, required: false, index: true },
     itemType: { 
       type: String, 
       enum: ['MOVIE', 'SERIES', 'SEASON', 'EPISODE'], 
@@ -33,8 +35,15 @@ const myCollectionSchema = new Schema<IMyCollection>(
   },
 );
 
-// One unique entry per user and specific item
-myCollectionSchema.index({ userId: 1, itemId: 1 }, { unique: true });
+// One unique entry per user/guest and specific item
+myCollectionSchema.index(
+  { userId: 1, itemId: 1 },
+  { unique: true, partialFilterExpression: { userId: { $type: 'objectId' } } }
+);
+myCollectionSchema.index(
+  { guestId: 1, itemId: 1 },
+  { unique: true, partialFilterExpression: { guestId: { $type: 'string' } } }
+);
 
 export const MyCollection = model<IMyCollection, MyCollectionModel>(
   'MyCollection',

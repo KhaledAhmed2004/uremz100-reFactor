@@ -2,19 +2,27 @@ import { logger } from '../../../shared/logger';
 import config from '../../../config';
 import admin from 'firebase-admin';
 
-// Decode Base64 Firebase service account
-const serviceAccountJson = Buffer.from(
-  config.firebase_api_key_base64!, // the Base64 string from .env
-  'base64'
-).toString('utf8');
+if (config.firebase_api_key_base64) {
+  try {
+    // Decode Base64 Firebase service account
+    const serviceAccountJson = Buffer.from(
+      config.firebase_api_key_base64,
+      'base64'
+    ).toString('utf8');
 
-// Parse it as JSON
-const serviceAccount: admin.ServiceAccount = JSON.parse(serviceAccountJson);
+    // Parse it as JSON
+    const serviceAccount: admin.ServiceAccount = JSON.parse(serviceAccountJson);
 
-// Initialize Firebase SDK
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+    // Initialize Firebase SDK
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } catch (error) {
+    logger.warn('Failed to initialize Firebase:', error);
+  }
+} else {
+  logger.warn('Firebase API key not provided. Push notifications will not work.');
+}
 
 // Multiple users
 const sendPushNotifications = async (
