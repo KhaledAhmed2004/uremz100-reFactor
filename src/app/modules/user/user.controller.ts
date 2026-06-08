@@ -12,6 +12,9 @@ import config from '../../../config';
 const createUser = catchAsync(async (req: Request, res: Response) => {
   const { profileImage, verificationImage, verificationVideo, ...userData } = req.body;
 
+  // Extract guestId from headers
+  const guestId = req.headers['x-guest-id'] as string | undefined;
+
   // Check if requester is an admin (optional auth for this specific endpoint)
   let isAdmin = false;
   const authHeader = req.headers.authorization;
@@ -40,7 +43,8 @@ const createUser = catchAsync(async (req: Request, res: Response) => {
       verificationImage,
       verificationVideo,
     },
-    isAdmin
+    isAdmin,
+    guestId
   );
 
   sendResponse(res, {

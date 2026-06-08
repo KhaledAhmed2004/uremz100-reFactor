@@ -6,7 +6,12 @@ import { MyCollectionService } from './my-collection.service';
 
 const addToCollection = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
-  const result = await MyCollectionService.addToCollectionInDB(user.id, req.body);
+  const guestId = req.guestId;
+  const result = await MyCollectionService.addToCollectionInDB({
+    userId: user?.id,
+    guestId,
+    ...req.body,
+  });
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,
@@ -18,8 +23,13 @@ const addToCollection = catchAsync(async (req: Request, res: Response) => {
 
 const removeFromCollection = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
+  const guestId = req.guestId;
   const { collectionId } = req.params;
-  await MyCollectionService.removeFromCollectionFromDB(user.id, collectionId);
+  await MyCollectionService.removeFromCollectionFromDB({
+    userId: user?.id,
+    guestId,
+    collectionId,
+  });
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -31,7 +41,8 @@ const removeFromCollection = catchAsync(async (req: Request, res: Response) => {
 
 const getMyCollection = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
-  const result = await MyCollectionService.getMyCollectionFromDB(user.id, req.query);
+  const guestId = req.guestId;
+  const result = await MyCollectionService.getMyCollectionFromDB(user?.id, guestId, req.query);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

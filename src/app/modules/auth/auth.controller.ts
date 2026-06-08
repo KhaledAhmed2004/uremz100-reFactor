@@ -179,9 +179,12 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
 });
 
 const socialLogin = catchAsync(async (req: Request, res: Response) => {
+  const guestId = req.headers['x-guest-id'] as string | undefined;
+  
   const result = await AuthService.socialLoginToDB(
     req.body,
     sessionMetadataFromReq(req),
+    guestId
   );
 
   // Set refresh token in httpOnly cookie

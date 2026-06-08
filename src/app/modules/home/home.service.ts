@@ -17,7 +17,8 @@ const fetchWithCache = async (key: string, fetcher: () => Promise<any>, ttlSecon
   const data = await fetcher();
 
   try {
-    if (data && data.length > 0) {
+    // data can be an object or an array. Just check if it's truthy and not an empty array.
+    if (data && (!Array.isArray(data) || data.length > 0)) {
       await redisClient.setex(key, ttlSeconds, JSON.stringify(data));
     }
   } catch (error) {
@@ -27,130 +28,113 @@ const fetchWithCache = async (key: string, fetcher: () => Promise<any>, ttlSecon
   return data;
 };
 
-const getHomeContentFromDB = async (userId?: string) => {
+const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: string = 'popular', filter: string = 'daily') => {
   const sections: any[] = [];
 
   // 1. Continue Watching (Personalized - NO CACHE)
-  const continueWatchingPromise = async () => {
-    if (!userId) return null;
-    const recentlyWatched = await RecentlyWatched.find({ userId })
+  const getContinueWatching = async () => {
+    if (!userId && !guestId) return null;
+    const query = userId ? { userId } : { guestId };
+    const recentlyWatched = await RecentlyWatched.find(query)
       .sort({ lastWatchedAt: -1 })
       .limit(10)
       .populate('contentId', cardFields);
 
-    if (recentlyWatched.length > 0) {
-      return {
-        id: 'row_continue_watching',
-        type: 'CONTINUE_WATCHING',
-        title: 'Continue Watching',
-        items: recentlyWatched.map((rw: any) => {
-          const content = rw.contentId ? rw.contentId.toObject() : {};
-          return {
-            ...content,
-            progress: {
-              seconds: rw.watchedSeconds,
-              percentage: rw.completionPercentage,
-              last_watched: rw.lastWatchedAt,
-            },
-          };
-        }),
-      };
-    }
-    return null;
+    return {
+      id: 'row_continue_watching',
+      type: 'CONTINUE_WATCHING',
+      title: 'Continue Watching',
+      items: recentlyWatched.length > 0 ? recentlyWatched.map((rw: any) => {
+        const content = rw.contentId ? rw.contentId.toObject() : {};
+        return {
+          ...content,
+          progress: {
+            seconds: rw.watchedSeconds,
+            percentage: rw.completionPercentage,
+            last_watched: rw.lastWatchedAt,
+          },
+        };
+      }) : [],
+    };
   };
 
-  // 2-10: Global Queries
-  const queries = [
-    // Continue Watching (Executes without cache)
-    continueWatchingPromise(),
-    
-    // Trending
-    fetchWithCache('home:trending', async () => {
-      const data = await Content.find({ views: { $gt: 100 } })
-        .sort({ views: -1 })
-        .select(cardFields)
-        .limit(10);
-      return { id: 'row_trending_now', type: 'TRENDING', title: 'Trending Now', items: data };
-    }),
+  const getTrending = () => fetchWithCache('home:trending', async () => {
+    const data = await Content.find({ views: { $gt: 100 } }).sort({ views: -1 }).select(cardFields).limit(10);
+    return { id: 'row_trending_now', type: 'TRENDING', title: 'Trending Now', items: data };
+  });
 
-    // You Might Like
-    fetchWithCache('home:you_might_like', async () => {
-      const data = await Content.find()
-        .sort({ rating: -1 })
-        .select(cardFields)
-        .limit(10);
-      return { id: 'row_you_might_like', type: 'YOU_MIGHT_LIKE', title: 'You Might Like', items: data };
-    }),
+  const getYouMightLike = () => fetchWithCache('home:you_might_like', async () => {
+    const data = await Content.find().sort({ rating: -1 }).select(cardFields).limit(10);
+    return { id: 'row_you_might_like', type: 'YOU_MIGHT_LIKE', title: 'You Might Like', items: data };
+  });
 
-    // Rankings
-    fetchWithCache('home:rankings', async () => {
-      const data = await Content.find()
-        .sort({ views: -1 })
-        .select(cardFields)
-        .limit(5);
-      return data.length > 0 ? { id: 'row_rankings', type: 'RANKING', title: 'Top Rankings', items: data } : null;
-    }),
+  const getPopularSeries = () => fetchWithCache('home:popular_series', async () => {
+    const data = await Content.find({ type: 'SERIES', isPopularSeries: true }).select(cardFields).limit(10);
+    return { id: 'row_popular_series', type: 'SERIES', title: 'Most Popular Series', items: data };
+  });
 
-    // Most Popular Series
-    fetchWithCache('home:popular_series', async () => {
-      const data = await Content.find({ type: 'SERIES', isPopularSeries: true })
-        .select(cardFields)
-        .limit(10);
-      return data.length > 0 ? { id: 'row_popular_series', type: 'SERIES', title: 'Most Popular Series', items: data } : null;
-    }),
+  const getPopularMovies = () => fetchWithCache('home:popular_movies', async () => {
+    const data = await Content.find({ type: 'MOVIE' }).sort({ views: -1 }).select(cardFields).limit(10);
+    return { id: 'row_popular_movies', type: 'MOVIE', title: 'Most Popular Movies', items: data };
+  });
 
-    // Most Popular Movies
-    fetchWithCache('home:popular_movies', async () => {
-      const data = await Content.find({ type: 'MOVIE' })
-        .sort({ views: -1 })
-        .select(cardFields)
-        .limit(10);
-      return data.length > 0 ? { id: 'row_popular_movies', type: 'MOVIE', title: 'Most Popular Movies', items: data } : null;
-    }),
+  const getTopPicks = () => fetchWithCache('home:top_picks', async () => {
+    const data = await Content.find({ rating: { $gte: 4.5 } }).select(cardFields).limit(10);
+    return { id: 'row_top_picks', type: 'TOP_PICKS', title: 'Top Picks for You', items: data };
+  });
 
-    // Top Picks
-    fetchWithCache('home:top_picks', async () => {
-      const data = await Content.find({ rating: { $gte: 4.5 } })
-        .select(cardFields)
-        .limit(10);
-      return { id: 'row_top_picks', type: 'TOP_PICKS', title: 'Top Picks for You', items: data };
-    }),
+  const getNewReleases = () => fetchWithCache('home:new_releases', async () => {
+    const data = await Content.find({ isRecent: true, status: 'PUBLISHED' }).sort({ createdAt: -1 }).select(cardFields).limit(10);
+    return { id: 'row_new_releases', type: 'NEW_RELEASE', title: 'New Releases', items: data };
+  });
 
-    // VIP Picks
-    fetchWithCache('home:vip_picks', async () => {
-      const data = await Content.find({ isPremium: true })
-        .select(cardFields)
-        .limit(10);
-      return data.length > 0 ? { id: 'row_vip_picks', type: 'VIP', title: 'VIP Picks', items: data } : null;
-    }),
+  const getComingSoon = () => fetchWithCache('home:coming_soon', async () => {
+    const data = await Content.find({ status: 'DRAFT' }).sort({ createdAt: -1 }).select(cardFields).limit(10);
+    return { id: 'row_coming_soon', type: 'COMING_SOON', title: 'Coming Soon', items: data };
+  });
 
-    // Newly Released
-    fetchWithCache('home:new_releases', async () => {
-      const data = await Content.find({ isRecent: true, status: 'PUBLISHED' })
-        .sort({ createdAt: -1 })
-        .select(cardFields)
-        .limit(10);
-      return { id: 'row_new_releases', type: 'NEW_RELEASE', title: 'New Releases', items: data };
-    }),
+  let queries: Promise<any>[] = [];
 
-    // Coming Soon
-    fetchWithCache('home:coming_soon', async () => {
-      const data = await Content.find({ status: 'DRAFT' })
-        .sort({ createdAt: -1 })
-        .select(cardFields)
-        .limit(10);
-      return data.length > 0 ? { id: 'row_coming_soon', type: 'COMING_SOON', title: 'Coming Soon', items: data } : null;
-    }),
-
-    // YouTube Upcoming
-    fetchWithCache('home:yt_upcoming', async () => {
-      const data = await Content.find({ youtubeId: { $exists: true, $ne: null } })
-        .sort({ publishedAt: -1 })
-        .select(cardFields + ' youtubeId channelName publishedAt')
-        .limit(10);
-      return data.length > 0 ? { id: 'row_yt_upcoming', type: 'YOUTUBE_SHELF', title: 'Upcoming Trailers on YouTube', items: data } : null;
-    })
-  ];
+  if (tab === 'new') {
+    queries = [
+      getComingSoon(),
+      getNewReleases()
+    ];
+  } else if (tab === 'vip') {
+    queries = [
+      fetchWithCache('home:vip_daily', async () => {
+        const data = await Content.find({ isPremium: true }).sort({ rating: -1 }).select(cardFields).limit(10);
+        return { id: 'row_vip_daily', type: 'VIP', title: "Today's VIP Picks", items: data };
+      }),
+      fetchWithCache('home:vip_weekly', async () => {
+        const data = await Content.find({ isPremium: true }).sort({ views: -1 }).select(cardFields).limit(10);
+        return { id: 'row_vip_weekly', type: 'VIP', title: "Weekly VIP Picks", items: data };
+      }),
+      getTrending() // Represents "Hot Now"
+    ];
+  } else if (tab === 'ranking') {
+    // Dynamic ranking based on filter (daily, weekly, monthly, popular)
+    queries = [
+      fetchWithCache(`home:ranking:${filter}`, async () => {
+        let sortConfig: any = { views: -1 };
+        if (filter === 'daily') sortConfig = { createdAt: -1, views: -1 };
+        // Ideally filter applies to a specific time range in DB
+        const data = await Content.find().sort(sortConfig).select(cardFields).limit(10);
+        const title = filter === 'popular' ? 'Popular Rankings' : `${filter.charAt(0).toUpperCase() + filter.slice(1)} Rankings`;
+        return { id: `row_ranking_${filter}`, type: 'RANKING', title, items: data };
+      })
+    ];
+  } else {
+    // tab === 'popular'
+    queries = [
+      getContinueWatching(),
+      getTrending(),
+      getPopularSeries(),
+      getPopularMovies(),
+      getYouMightLike(),
+      getTopPicks()
+    ];
+  }
 
   // Execute all queries in parallel
   const results = await Promise.allSettled(queries);
@@ -164,9 +148,7 @@ const getHomeContentFromDB = async (userId?: string) => {
     }
   });
 
-  return {
-    sections,
-  };
+  return { sections };
 };
 
 export const HomeService = {

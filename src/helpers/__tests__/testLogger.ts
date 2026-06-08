@@ -4,6 +4,7 @@ import chalk from 'chalk';
 chalk.level = 3;
 
 interface RequestData {
+  headers?: any;
   params?: any;
   query?: any;
   body?: any;
@@ -87,8 +88,9 @@ export function logApi(
 
 
   
-  // Normalize requestData: always show params, query, body even if empty/missing
+  // Normalize requestData: always show headers, params, query, body even if empty/missing
   const normalizedRequest = {
+    headers: requestData.headers ?? {},
     params: requestData.params ?? {},
     query: requestData.query ?? {},
     body: requestData.body ?? {},

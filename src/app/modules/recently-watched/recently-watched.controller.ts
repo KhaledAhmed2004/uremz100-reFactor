@@ -6,7 +6,12 @@ import { RecentlyWatchedService } from './recently-watched.service';
 
 const trackProgress = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
-  const result = await RecentlyWatchedService.trackProgressInDB(user.id, req.body);
+  const guestId = req.guestId;
+  const result = await RecentlyWatchedService.trackProgressInDB({
+    userId: user?.id,
+    guestId,
+    ...req.body,
+  });
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -18,7 +23,8 @@ const trackProgress = catchAsync(async (req: Request, res: Response) => {
 
 const getRecentlyWatched = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
-  const result = await RecentlyWatchedService.getRecentlyWatchedFromDB(user.id);
+  const guestId = req.guestId;
+  const result = await RecentlyWatchedService.getRecentlyWatchedFromDB(user?.id, guestId);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

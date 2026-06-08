@@ -6,6 +6,7 @@ import app from '../../../../app'; // Ensure this path correctly points to the e
 import { Content } from '../../content/content.model';
 import { User } from '../../user/user.model';
 import { RecentlyWatched } from '../../recently-watched/recently-watched.model';
+import { USER_ROLES, USER_STATUS } from '../../../../enums/user';
 
 import config from '../../../../config';
 
@@ -49,7 +50,7 @@ describe('E2E: Guest User to Registered User Flow', () => {
   });
 
   it('Step 1: Guest visits home page', async () => {
-    const res = await request(app).get('/api/v1/home').set('x-guest-id', guestId);
+    const res = await request(app).get('/api/v1/home/content').set('x-guest-id', guestId);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     // Continue watching should be empty for a new guest
@@ -77,7 +78,14 @@ describe('E2E: Guest User to Registered User Flow', () => {
       name: 'E2E User',
       email: 'e2e@example.com',
       password: 'password123',
-      role: 'USER',
+      role: USER_ROLES.BROTHER,
+      status: USER_STATUS.ACTIVE,
+      isVerified: true,
+      revertDate: new Date(),
+      dateOfBirth: new Date('1990-01-01'),
+      profileImage: '/default-avatar.svg',
+      verificationImage: 'https://example.com/img.jpg',
+      verificationVideo: 'https://example.com/vid.mp4',
     });
 
     // Simulate Auth Service Migration Logic:

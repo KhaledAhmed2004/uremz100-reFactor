@@ -16,11 +16,11 @@ describe('Home API Integration Tests', () => {
     vi.clearAllMocks();
   });
 
-  it('GET /api/v1/home should return 200 and sections array', async () => {
+  it('GET /api/v1/home/content should return 200 and sections array', async () => {
     // Mock redis cache miss
     (redisClient.get as any).mockResolvedValue(null);
 
-    const res = await request(app).get('/api/v1/home');
+    const res = await request(app).get('/api/v1/home/content');
     
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -28,9 +28,9 @@ describe('Home API Integration Tests', () => {
     expect(Array.isArray(res.body.data.sections)).toBe(true);
   });
 
-  it('GET /api/v1/home should not crash if x-guest-id is provided', async () => {
+  it('GET /api/v1/home/content should not crash if x-guest-id is provided', async () => {
     const res = await request(app)
-      .get('/api/v1/home')
+      .get('/api/v1/home/content')
       .set('x-guest-id', 'test-guest-123');
       
     expect(res.status).toBe(200);

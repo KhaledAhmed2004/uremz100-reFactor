@@ -8,12 +8,16 @@ import { MyCollection } from './my-collection.model';
 import QueryBuilder from '../../builder/QueryBuilder';
 
 const addToCollectionInDB = async (
-  userId: string,
   payload: {
+    userId?: string;
+    guestId?: string;
     itemId: string;
   },
 ) => {
-  const { itemId } = payload;
+  const { userId, guestId, itemId } = payload;
+  if (!userId && !guestId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'User ID or Guest ID is required');
+  }
 
   let itemType: 'MOVIE' | 'SERIES' | 'SEASON' | 'EPISODE' | undefined;
   let itemModel: 'Content' | 'Season' | 'Episode' | undefined;
@@ -43,28 +47,38 @@ const addToCollectionInDB = async (
     throw new ApiError(httpStatus.NOT_FOUND, 'Content not found in any category');
   }
 
+  const query = userId
+    ? { userId: new Types.ObjectId(userId), itemId: new Types.ObjectId(itemId) }
+    : { guestId, itemId: new Types.ObjectId(itemId) };
+
+  const updateData: any = {
+    itemType,
+    itemId: new Types.ObjectId(itemId),
+    itemModel,
+  };
+  
+  if (userId) {
+    updateData.userId = new Types.ObjectId(userId);
+  } else if (guestId) {
+    updateData.guestId = guestId;
+  }
+
   const result = await MyCollection.findOneAndUpdate(
-    {
-      userId: new Types.ObjectId(userId),
-      itemId: new Types.ObjectId(itemId),
-    },
-    {
-      userId: new Types.ObjectId(userId),
-      itemType,
-      itemId: new Types.ObjectId(itemId),
-      itemModel,
-    },
+    query,
+    updateData,
     { upsert: true, new: true },
   );
 
   return result;
 };
 
-const removeFromCollectionFromDB = async (userId: string, collectionId: string) => {
-  const result = await MyCollection.findOneAndDelete({
-    _id: collectionId,
-    userId: new Types.ObjectId(userId),
-  });
+const removeFromCollectionFromDB = async (payload: { userId?: string, guestId?: string, collectionId: string }) => {
+  const { userId, guestId, collectionId } = payload;
+  const query = userId 
+    ? { _id: collectionId, userId: new Types.ObjectId(userId) } 
+    : { _id: collectionId, guestId };
+
+  const result = await MyCollection.findOneAndDelete(query);
   
   if (!result) {
     throw new ApiError(httpStatus.NOT_FOUND, 'Item not found in your collection');
@@ -73,8 +87,11 @@ const removeFromCollectionFromDB = async (userId: string, collectionId: string) 
   return result;
 };
 
-const getMyCollectionFromDB = async (userId: string, query: Record<string, unknown>) => {
-  const myCollectionQuery = MyCollection.find({ userId: new Types.ObjectId(userId) })
+const getMyCollectionFromDB = async (userId: string | undefined, guestId: string | undefined, query: Record<string, unknown>) => {
+  if (!userId && !guestId) return { pagination: null, data: [] };
+
+  const dbQuery = userId ? { userId: new Types.ObjectId(userId) } : { guestId };
+  const myCollectionQuery = MyCollection.find(dbQuery)
     .populate('itemId');
 
   const collectionQuery = new QueryBuilder(myCollectionQuery, query)

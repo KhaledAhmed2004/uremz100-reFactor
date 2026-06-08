@@ -21,6 +21,7 @@ import cryptoToken from '../../../util/cryptoToken';
 import generateOTP from '../../../util/generateOTP';
 import { ResetToken } from './resetToken/resetToken.model';
 import { User } from '../user/user.model';
+import { migrateGuestDataToUser } from '../../../helpers/guestMigration';
 import { USER_STATUS, USER_ROLES } from '../../../enums/user';
 import {
   OTP_TTL_MS,
@@ -510,6 +511,7 @@ const resendVerifyEmailToDB = async (email: string) => {
 const socialLoginToDB = async (
   payload: ISocialLogin,
   sessionMetadata?: { ip?: string; userAgent?: string },
+  guestId?: string,
 ) => {
   const { provider, idToken, nonce, deviceToken, platform, appVersion } = payload;
 
@@ -670,6 +672,10 @@ const socialLoginToDB = async (
       status: USER_STATUS.PENDING,
       [providerField]: providerId,
     });
+
+    if (guestId) {
+      await migrateGuestDataToUser(guestId, user._id);
+    }
 
     // Re-fetch with tokenVersion
     user = await User.findById(user._id).select('+tokenVersion');

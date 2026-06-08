@@ -6,6 +6,7 @@ import request from 'supertest';
 import app from '../../../../app';
 import { User } from '../../user/user.model';
 import { Content } from '../../content/content.model';
+import { RecentlyWatched } from '../../recently-watched/recently-watched.model';
 import { jwtHelper } from '../../../../helpers/jwtHelper';
 import config from '../../../../config';
 import { Secret } from 'jsonwebtoken';
@@ -58,7 +59,7 @@ beforeEach(async () => {
 
 describe('Home Module E2E Tests', () => {
   describe('Get Home Content (GET /api/v1/home/content)', () => {
-    it('successfully retrieves home sections including Popular Movies and Popular Series', async () => {
+    it('successfully retrieves popular sections using ?tab=popular', async () => {
       const { token } = await createAuthUser(USER_ROLES.BROTHER);
       
       // 1. Trending Movie (views > 100)
@@ -111,10 +112,10 @@ describe('Home Module E2E Tests', () => {
       });
 
       const response = await request(app)
-        .get('/api/v1/home/content')
+        .get('/api/v1/home/content?tab=popular')
         .set('Authorization', `Bearer ${token}`);
 
-      logApi('GET', '/api/v1/home/content', {}, response.body, 'GET-HOME-CONTENT', 'User fetches home sections');
+      logApi('GET', '/api/v1/home/content?tab=popular', { headers: { Authorization: `Bearer ${token}` } }, response.body, 'GET-HOME-CONTENT', 'User fetches popular sections');
 
       expect(response.status).toBe(StatusCodes.OK);
       expect(response.body.success).toBe(true);
@@ -137,6 +138,177 @@ describe('Home Module E2E Tests', () => {
 
       const trendingSection = sections.find((s: any) => s.id === 'row_trending_now');
       expect(trendingSection).toBeDefined();
+    });
+
+    it('successfully retrieves popular sections for a guest user using ?tab=popular', async () => {
+      const guestId = 'e2e-guest-123';
+      
+      const content = await Content.create({
+        title: 'Guest Top Pick',
+        description: 'desc',
+        type: 'MOVIE',
+        videoUrl: 'http://video.com',
+        duration: 130,
+        releaseYear: 2024,
+        views: 50,
+        rating: 4.8,
+      });
+      
+      await RecentlyWatched.create({
+        guestId,
+        contentId: content._id,
+        watchedSeconds: 120,
+        completionPercentage: 50,
+      });
+
+      const response = await request(app)
+        .get('/api/v1/home/content?tab=popular')
+        .set('x-guest-id', guestId);
+
+      logApi('GET', '/api/v1/home/content?tab=popular', { headers: { 'x-guest-id': guestId } }, response.body, 'GET-HOME-CONTENT-GUEST', 'Guest user fetches popular sections');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.body.success).toBe(true);
+      
+      const sections = response.body.data.sections;
+      const continueWatchingSection = sections.find((s: any) => s.id === 'row_continue_watching');
+      expect(continueWatchingSection).toBeDefined();
+      expect(continueWatchingSection.items.length).toBeGreaterThan(0);
+      expect(continueWatchingSection.items[0].title).toBe('Guest Top Pick');
+    });
+    it('successfully retrieves new sections using ?tab=new', async () => {
+      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+
+      await Content.create({
+        title: 'New Coming Soon',
+        description: 'desc',
+        type: 'MOVIE',
+        status: 'DRAFT',
+        videoUrl: 'http://video.com',
+        duration: 120,
+        releaseYear: 2025,
+      });
+
+      // New Release
+      await Content.create({
+        title: 'New Release Movie',
+        description: 'desc',
+        type: 'MOVIE',
+        status: 'PUBLISHED',
+        isRecent: true,
+        videoUrl: 'http://video.com',
+        duration: 120,
+        releaseYear: 2024,
+      });
+
+      const response = await request(app)
+        .get('/api/v1/home/content?tab=new')
+        .set('Authorization', `Bearer ${token}`);
+
+      logApi('GET', '/api/v1/home/content?tab=new', { headers: { Authorization: `Bearer ${token}` } }, response.body, 'GET-HOME-CONTENT-NEW', 'User fetches new sections');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.body.success).toBe(true);
+
+      const sections = response.body.data.sections;
+      const comingSoonSection = sections.find((s: any) => s.id === 'row_coming_soon');
+      expect(comingSoonSection).toBeDefined();
+      expect(comingSoonSection.title).toBe('Coming Soon');
+
+      const newReleaseSection = sections.find((s: any) => s.id === 'row_new_releases');
+      expect(newReleaseSection).toBeDefined();
+      expect(newReleaseSection.title).toBe('New Releases');
+    });
+
+    it('successfully retrieves vip sections using ?tab=vip', async () => {
+      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+
+      await Content.create({
+        title: 'VIP Movie',
+        description: 'Premium content',
+        type: 'MOVIE',
+        videoUrl: 'http://video.com',
+        duration: 120,
+        releaseYear: 2024,
+        isPremium: true,
+        rating: 4.9,
+      });
+
+      const response = await request(app)
+        .get('/api/v1/home/content?tab=vip')
+        .set('Authorization', `Bearer ${token}`);
+
+      logApi('GET', '/api/v1/home/content?tab=vip', { headers: { Authorization: `Bearer ${token}` } }, response.body, 'GET-HOME-CONTENT-VIP', 'User fetches VIP sections');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.body.success).toBe(true);
+
+      const sections = response.body.data.sections;
+      
+      const vipDailySection = sections.find((s: any) => s.id === 'row_vip_daily');
+      expect(vipDailySection).toBeDefined();
+      expect(vipDailySection.title).toBe("Today's VIP Picks");
+      
+      const vipWeeklySection = sections.find((s: any) => s.id === 'row_vip_weekly');
+      expect(vipWeeklySection).toBeDefined();
+      expect(vipWeeklySection.title).toBe("Weekly VIP Picks");
+    });
+
+    it('successfully retrieves ranking sections using ?tab=ranking&filter=weekly', async () => {
+      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+
+      await Content.create({
+        title: 'Weekly Hit Movie',
+        description: 'Hits of the week',
+        type: 'MOVIE',
+        videoUrl: 'http://video.com',
+        duration: 120,
+        releaseYear: 2024,
+        views: 500,
+      });
+
+      const response = await request(app)
+        .get('/api/v1/home/content?tab=ranking&filter=weekly')
+        .set('Authorization', `Bearer ${token}`);
+
+      logApi('GET', '/api/v1/home/content?tab=ranking&filter=weekly', { headers: { Authorization: `Bearer ${token}` } }, response.body, 'GET-HOME-CONTENT-RANKING', 'User fetches weekly ranking sections');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.body.success).toBe(true);
+
+      const sections = response.body.data.sections;
+      const rankingSection = sections.find((s: any) => s.id === 'row_ranking_weekly');
+      expect(rankingSection).toBeDefined();
+      expect(rankingSection.title).toBe('Weekly Rankings');
+      expect(rankingSection.items.length).toBeGreaterThan(0);
+    });
+
+    it('returns an empty sections array when there is no content matching the tab', async () => {
+      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+
+      // We do NOT create any Content here, so the DB is empty for this test
+
+      const response = await request(app)
+        .get('/api/v1/home/content?tab=new')
+        .set('Authorization', `Bearer ${token}`);
+
+      logApi('GET', '/api/v1/home/content?tab=new', { headers: { Authorization: `Bearer ${token}` } }, response.body, 'GET-HOME-CONTENT-EMPTY', 'User fetches new sections when empty');
+
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.sections).toBeInstanceOf(Array);
+      expect(response.body.data.sections.length).toBe(2);
+
+      const sections = response.body.data.sections;
+      const comingSoonSection = sections.find((s: any) => s.id === 'row_coming_soon');
+      expect(comingSoonSection).toBeDefined();
+      expect(comingSoonSection.items).toBeInstanceOf(Array);
+      expect(comingSoonSection.items.length).toBe(0);
+
+      const newReleaseSection = sections.find((s: any) => s.id === 'row_new_releases');
+      expect(newReleaseSection).toBeDefined();
+      expect(newReleaseSection.items).toBeInstanceOf(Array);
+      expect(newReleaseSection.items.length).toBe(0);
     });
   });
 });

@@ -12,6 +12,7 @@ import { GenreRoutes } from '../app/modules/genre/genre.route';
 import { RecentlyWatchedRoutes } from '../app/modules/recently-watched/recently-watched.route';
 import { HomeRoutes } from '../app/modules/home/home.route';
 import { MyCollectionRoutes } from '../app/modules/my-collection/my-collection.route';
+import { ShortsRoutes } from '../app/modules/shorts/shorts.route';
 
 const router = express.Router();
 
@@ -68,6 +69,10 @@ const apiRoutes = [
   {
     path: '/my-collection',
     route: MyCollectionRoutes,
+  },
+  {
+    path: '/shorts',
+    route: ShortsRoutes,
   },
 ];
 

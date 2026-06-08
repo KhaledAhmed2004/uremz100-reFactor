@@ -19,12 +19,14 @@ import {
   REVERIFY_TOKEN_TTL_HOURS,
 } from '../../../config/auth.constants';
 import cryptoToken from '../../../util/cryptoToken';
+import { migrateGuestDataToUser } from '../../../helpers/guestMigration';
 
 import mongoose from 'mongoose';
 
 const createUserToDB = async (
   payload: Partial<IUser>,
-  isAdmin = false
+  isAdmin = false,
+  guestId?: string
 ): Promise<IUser> => {
   const session = await mongoose.startSession();
   try {
@@ -64,6 +66,11 @@ const createUserToDB = async (
     if (!isAdmin) {
       // Note: sendVerificationOTP must also support session if it writes to DB
       await sendVerificationOTP(createUser.email, session);
+    }
+
+    // 5. Migrate guest data
+    if (guestId) {
+      await migrateGuestDataToUser(guestId, createUser._id);
     }
 
     await session.commitTransaction();
