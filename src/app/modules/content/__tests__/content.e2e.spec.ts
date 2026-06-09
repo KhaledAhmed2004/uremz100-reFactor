@@ -135,11 +135,15 @@ describe('Content E2E Tests', () => {
   });
 
   describe('Get Coming Soon Content (GET /api/v1/contents/coming-soon)', () => {
-    it('successfully retrieves upcoming content marked as isRecent', async () => {
+    it('successfully retrieves upcoming content based on future release date', async () => {
       const { token } = await createAuthUser(USER_ROLES.SUPER_ADMIN);
 
-      await Content.create({ title: 'Old Movie', description: 'desc', releaseYear: 2020, duration: 120, videoUrl: 'url', type: 'MOVIE', isRecent: false, status: 'PUBLISHED' });
-      await Content.create({ title: 'Upcoming Movie', description: 'desc', releaseYear: 2020, duration: 120, videoUrl: 'url', type: 'MOVIE', isRecent: true, status: 'PUBLISHED' });
+      const now = new Date();
+      const nextYear = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+      const lastYear = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+      await Content.create({ title: 'Old Movie', description: 'desc', releaseYear: 2020, duration: 120, videoUrl: 'url', type: 'MOVIE', releaseDate: lastYear, status: 'PUBLISHED' });
+      await Content.create({ title: 'Upcoming Movie', description: 'desc', releaseYear: 2020, duration: 120, videoUrl: 'url', type: 'MOVIE', releaseDate: nextYear, status: 'PUBLISHED' });
 
       const response = await request(app)
         .get('/api/v1/contents/coming-soon')

@@ -30,7 +30,7 @@ const searchContentFromDB = async (query: Record<string, unknown>) => {
     query.sort = '-createdAt';
   }
 
-  const cardFields = 'title poster type rating releaseYear isPremium';
+  const cardFields = 'title poster type rating releaseYear isPremium publishedAt createdAt';
 
   const contentQuery = new QueryBuilder(Content.find().select(cardFields), query)
     .search(searchableFields)
@@ -82,7 +82,14 @@ const getBestMoviesFromDB = async () => {
 };
 
 const getComingSoonContentFromDB = async () => {
-  const result = await Content.find({ isRecent: true }).sort({ createdAt: -1 }).limit(10);
+  const now = new Date();
+  const result = await Content.find({
+    $and: [
+      { releaseDate: { $exists: true, $ne: null } },
+      { releaseDate: { $gte: now } },
+      { status: 'PUBLISHED' }
+    ]
+  }).sort({ releaseDate: 1 }).limit(10);
   return result;
 };
 
@@ -302,7 +309,7 @@ const deleteEpisodeFromDB = async (id: string) => {
   return result;
 };
 const createMovieToDB = async (payload: any) => {
-  const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, isRecent, isPopularSeries, thumbnail, ...rest } = payload;
+  const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, thumbnail, ...rest } = payload;
 
   const movieData: any = {
     ...rest,
@@ -315,17 +322,18 @@ const createMovieToDB = async (payload: any) => {
     isPopularSeries: isPopularSeries === 'true' || isPopularSeries === true,
     planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']),
     status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED',
+    publishedAt: isDraft === 'true' || isDraft === true ? undefined : new Date(),
     type: 'MOVIE'
   };
 
   if (isPremium !== undefined) movieData.isPremium = isPremium === 'true' || isPremium === true;
-  if (isRecent !== undefined) movieData.isRecent = isRecent === 'true' || isRecent === true;
+  if (releaseDate !== undefined) movieData.releaseDate = new Date(releaseDate);
 
   const result = await Content.create(movieData);
   return result;
 };
 const createSeriesToDB = async (payload: any) => {
-  const { isDraft, availability, genres, releaseYear, rating, views, isPremium, isRecent, isPopularSeries, cast, thumbnail, ...rest } = payload;
+  const { isDraft, availability, genres, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, cast, thumbnail, ...rest } = payload;
 
   const seriesData: any = {
     ...rest,
@@ -338,17 +346,18 @@ const createSeriesToDB = async (payload: any) => {
     isPopularSeries: isPopularSeries === 'true' || isPopularSeries === true,
     planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']),
     status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED',
+    publishedAt: isDraft === 'true' || isDraft === true ? undefined : new Date(),
     type: 'SERIES',
   };
 
   if (isPremium !== undefined) seriesData.isPremium = isPremium === 'true' || isPremium === true;
-  if (isRecent !== undefined) seriesData.isRecent = isRecent === 'true' || isRecent === true;
+  if (releaseDate !== undefined) seriesData.releaseDate = new Date(releaseDate);
 
   const result = await Content.create(seriesData);
   return result;
 };
 const updateSeriesInDB = async (id: string, payload: any) => {
-  const { isDraft, availability, genres, releaseYear, rating, views, isPremium, isRecent, isPopularSeries, cast, thumbnail, ...rest } = payload;
+  const { isDraft, availability, genres, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, cast, thumbnail, ...rest } = payload;
 
   const updateData: any = { ...rest };
   if (genres) updateData.genres = Array.isArray(genres) ? genres : [genres];
@@ -357,12 +366,14 @@ const updateSeriesInDB = async (id: string, payload: any) => {
   if (rating !== undefined) updateData.rating = Number(rating);
   if (views !== undefined) updateData.views = Number(views);
   if (isPremium !== undefined) updateData.isPremium = isPremium === 'true' || isPremium === true;
-  if (isRecent !== undefined) updateData.isRecent = isRecent === 'true' || isRecent === true;
+  if (releaseDate !== undefined) updateData.releaseDate = new Date(releaseDate);
   if (isPopularSeries !== undefined) updateData.isPopularSeries = isPopularSeries === 'true' || isPopularSeries === true;
 
   if (availability) updateData.planStatus = Array.isArray(availability) ? availability : [availability];
   if (isDraft !== undefined) {
-    updateData.status = isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED';
+    const isDraftBool = isDraft === 'true' || isDraft === true;
+    updateData.status = isDraftBool ? 'DRAFT' : 'PUBLISHED';
+    if (!isDraftBool) updateData.publishedAt = new Date();
   }
 
   const result = await Content.findByIdAndUpdate(id, updateData, { new: true });
@@ -381,7 +392,7 @@ const updateSeriesStatusInDB = async (id: string, status: string) => {
   return result;
 };
 const updateMovieInDB = async (id: string, payload: any) => {
-  const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, isRecent, isPopularSeries, ...rest } = payload;
+  const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, ...rest } = payload;
 
   const updateData: any = { ...rest };
   if (genres) updateData.genres = Array.isArray(genres) ? genres : [genres];
@@ -391,12 +402,14 @@ const updateMovieInDB = async (id: string, payload: any) => {
   if (rating !== undefined) updateData.rating = Number(rating);
   if (views !== undefined) updateData.views = Number(views);
   if (isPremium !== undefined) updateData.isPremium = isPremium === 'true' || isPremium === true;
-  if (isRecent !== undefined) updateData.isRecent = isRecent === 'true' || isRecent === true;
+  if (releaseDate !== undefined) updateData.releaseDate = new Date(releaseDate);
   if (isPopularSeries !== undefined) updateData.isPopularSeries = isPopularSeries === 'true' || isPopularSeries === true;
 
   if (availability) updateData.planStatus = Array.isArray(availability) ? availability : [availability];
   if (isDraft !== undefined) {
-    updateData.status = isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED';
+    const isDraftBool = isDraft === 'true' || isDraft === true;
+    updateData.status = isDraftBool ? 'DRAFT' : 'PUBLISHED';
+    if (!isDraftBool) updateData.publishedAt = new Date();
   }
 
   const result = await Content.findByIdAndUpdate(id, updateData, { new: true });

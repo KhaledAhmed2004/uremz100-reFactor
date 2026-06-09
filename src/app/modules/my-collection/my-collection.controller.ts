@@ -48,8 +48,7 @@ const getMyCollection = catchAsync(async (req: Request, res: Response) => {
     statusCode: httpStatus.OK,
     success: true,
     message: 'My collection retrieved successfully',
-    // @ts-ignore
-    pagination: result.pagination,
+    meta: result.pagination,
     data: result.data,
   });
 });

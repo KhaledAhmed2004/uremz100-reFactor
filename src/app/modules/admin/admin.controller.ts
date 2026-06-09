@@ -4,6 +4,7 @@ import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import ApiError from '../../../errors/ApiError';
 import { AdminService } from './admin.service';
+import { Content } from '../content/content.model';
 
 const getDashboardStats = catchAsync(async (req: Request, res: Response) => {
   const { range, startDate, endDate } = req.query;
@@ -87,7 +88,7 @@ const getAdminSubscriptions = catchAsync(async (req: Request, res: Response) => 
     success: true,
     statusCode: StatusCodes.OK,
     message: 'Subscriptions list fetched',
-    pagination: result.pagination,
+    meta: result.pagination,
     data: result.data,
   });
 });
@@ -108,7 +109,7 @@ const getTransactions = catchAsync(async (req: Request, res: Response) => {
     success: true,
     statusCode: StatusCodes.OK,
     message: 'Transactions list fetched',
-    pagination: result.pagination,
+    meta: result.pagination,
     data: result.data,
   });
 });
@@ -192,8 +193,27 @@ const getMovieAnalyticsRevenue = catchAsync(async (req: Request, res: Response) 
   });
 });
 
+const patchContentBoost = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { isPopularSeries } = req.body;
 
+  const content = await Content.findByIdAndUpdate(
+    id,
+    { isPopularSeries },
+    { new: true }
+  );
 
+  if (!content) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Content not found');
+  }
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: `Content ${isPopularSeries ? 'boosted' : 'unboosted'} successfully`,
+    data: content,
+  });
+});
 
 export const AdminController = {
   getDashboardStats,
@@ -210,4 +230,5 @@ export const AdminController = {
   getMovieAnalyticsEngagement,
   getMovieAnalyticsAudience,
   getMovieAnalyticsRevenue,
+  patchContentBoost,
 };

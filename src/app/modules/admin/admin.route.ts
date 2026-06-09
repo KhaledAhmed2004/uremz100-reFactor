@@ -103,6 +103,18 @@ router.get(
 );
 
 router.get(
+  '/movies/:movieId/revenue',
+  auth(USER_ROLES.SUPER_ADMIN),
+  AdminController.getMovieAnalyticsRevenue,
+);
+
+router.patch(
+  '/content/:id/boost',
+  auth(USER_ROLES.SUPER_ADMIN),
+  AdminController.patchContentBoost,
+);
+
+router.get(
   '/subscriptions',
   auth(USER_ROLES.SUPER_ADMIN),
   AdminController.getAdminSubscriptions,

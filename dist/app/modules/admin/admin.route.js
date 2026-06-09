@@ -1,0 +1,38 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AdminRoutes = void 0;
+const express_1 = __importDefault(require("express"));
+const auth_1 = __importDefault(require("../../middlewares/auth"));
+const user_1 = require("../../../enums/user");
+const admin_controller_1 = require("./admin.controller");
+const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const user_validation_1 = require("../user/user.validation");
+const user_controller_1 = require("../user/user.controller");
+const fileUploadHandler_1 = __importDefault(require("../../middlewares/fileUploadHandler"));
+const router = express_1.default.Router();
+const upload = (0, fileUploadHandler_1.default)();
+// Dashboard Overview
+router.get('/growth-metrics', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getDashboardStats);
+// Visitors analytics chart
+router.get('/visitors/analytics', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getVisitorAnalytics);
+// Watchlist status breakdown
+router.get('/watchlist/status', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getWatchlistStatus);
+// User Management (Admin Dashboard)
+router.get('/users/stats', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), user_controller_1.UserController.getUserMetrics);
+router.get('/users/export', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), user_controller_1.UserController.exportUsers);
+router.get('/users', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), user_controller_1.UserController.getAllUserRoles);
+router.patch('/users/:userId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(user_validation_1.UserValidation.adminUpdateUserZodSchema), user_controller_1.UserController.adminUpdateUser);
+router.delete('/users/bulk-delete', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), user_controller_1.UserController.bulkDeleteUsers);
+router.delete('/users/:userId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), user_controller_1.UserController.deleteUser);
+router.get('/users/:userId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), user_controller_1.UserController.getUserById);
+// Revenue Management
+router.get('/revenue/stats', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getRevenueStats);
+router.get('/transactions', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getTransactions);
+router.patch('/users/:userId/status', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(user_validation_1.UserValidation.updateUserStatusZodSchema), user_controller_1.UserController.updateUserStatus);
+// Subscriptions Management
+router.get('/subscriptions/stats', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getSubscriptionsStats);
+router.get('/subscriptions', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getAdminSubscriptions);
+exports.AdminRoutes = router;

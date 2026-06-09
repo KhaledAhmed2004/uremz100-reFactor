@@ -5,6 +5,7 @@ import './app/logging/autoLabelBootstrap';
 import './app/logging/opentelemetry';
 import './app/logging/patchBcrypt';
 import './app/logging/patchJWT';
+import './app/plugins/toJSON.plugin.bootstrap';
 import router from './routes';
 import swaggerUi from 'swagger-ui-express';
 import { StatusCodes } from 'http-status-codes';

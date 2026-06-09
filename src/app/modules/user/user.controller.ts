@@ -10,7 +10,15 @@ import { jwtHelper } from '../../../helpers/jwtHelper';
 import config from '../../../config';
 
 const createUser = catchAsync(async (req: Request, res: Response) => {
-  const { profileImage, verificationImage, verificationVideo, ...userData } = req.body;
+  const { profileImage, ...userData } = req.body;
+
+  // Handle files if uploaded
+  if (req.files) {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    if (files['profileImage']) {
+      userData.profileImage = (files['profileImage'][0] as any).location || files['profileImage'][0].path;
+    }
+  }
 
   // Extract guestId from headers
   const guestId = req.headers['x-guest-id'] as string | undefined;
@@ -39,9 +47,7 @@ const createUser = catchAsync(async (req: Request, res: Response) => {
   const result = await UserService.createUserToDB(
     {
       ...userData,
-      profileImage,
-      verificationImage,
-      verificationVideo,
+      profileImage: userData.profileImage || profileImage,
     },
     isAdmin,
     guestId
@@ -81,14 +87,12 @@ const getUserProfile = catchAsync(async (req: Request, res: Response) => {
 
 const updateProfile = catchAsync(async (req: Request, res: Response) => {
   const user = req.user;
+  const payload = { ...req.body };
 
-  // All files + text data are in req.body
-  const { profileImage, ...rest } = req.body;
-
-  const payload = {
-    ...rest,
-    ...(profileImage ? { profileImage } : {}),
-  };
+  // Handle file if uploaded
+  if (req.file) {
+    payload.profileImage = (req.file as any).location || req.file.path;
+  }
 
   const result = await UserService.updateProfileToDB(
     user as JwtPayload,
@@ -266,20 +270,17 @@ const requestEmailChange = catchAsync(async (req: Request, res: Response) => {
 });
 
 const reverifyAccount = catchAsync(async (req: Request, res: Response) => {
-  const { token, verificationImage, verificationVideo, profileImage } =
-    req.body as {
-      token: string;
-      verificationImage: string;
-      verificationVideo: string;
-      profileImage?: string;
-    };
+  const payload = { ...req.body };
 
-  const result = await UserService.reverifyAccountFromDB({
-    token,
-    verificationImage,
-    verificationVideo,
-    profileImage,
-  });
+  // Handle files if uploaded
+  if (req.files) {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    if (files['profileImage']) {
+      payload.profileImage = (files['profileImage'][0] as any).location || files['profileImage'][0].path;
+    }
+  }
+
+  const result = await UserService.reverifyAccountFromDB(payload);
 
   sendResponse(res, {
     success: true,

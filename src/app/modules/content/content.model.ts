@@ -13,10 +13,15 @@ export interface IContent {
   releaseYear: number;
   rating: number;
   views: number;
+  dailyViews: number;
+  weeklyViews: number;
+  totalWatchTime: number; // in seconds
+  engagementScore: number;
+  trendingScore: number;
   cast?: string[];
   type: 'SERIES' | 'MOVIE';
   isPremium?: boolean;
-  isRecent?: boolean;
+  releaseDate?: Date;
   isPopularSeries: boolean;
   youtubeId?: string;
   channelName?: string;
@@ -50,14 +55,19 @@ const contentSchema = new Schema<IContent>(
     releaseYear: { type: Number, required: true },
     rating: { type: Number, default: 0 },
     views: { type: Number, default: 0 },
+    dailyViews: { type: Number, default: 0 },
+    weeklyViews: { type: Number, default: 0 },
+    totalWatchTime: { type: Number, default: 0 },
+    engagementScore: { type: Number, default: 0 },
+    trendingScore: { type: Number, default: 0 },
     cast: { type: [String], default: [] },
     type: { type: String, enum: ['SERIES', 'MOVIE'], required: true },
     isPremium: { type: Boolean },
-    isRecent: { type: Boolean },
+    releaseDate: { type: Date },
     isPopularSeries: { type: Boolean, default: false },
     youtubeId: { type: String },
     channelName: { type: String },
-    publishedAt: { type: Date },
+    publishedAt: { type: Date, default: () => new Date(), index: true },
     planStatus: {
       type: [String],
       enum: ['FREE', 'WEEKLY', 'MONTHLY', 'YEARLY', 'ALL'],
@@ -73,7 +83,17 @@ const contentSchema = new Schema<IContent>(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   },
 );
+
+contentSchema.virtual('isRecent').get(function() {
+  // If publishedAt exists, use it; otherwise use createdAt
+  const date = this.publishedAt || (this as any).createdAt;
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  
+  return date && date >= thirtyDaysAgo;
+});
 
 export const Content = model<IContent, ContentModel>('Content', contentSchema);

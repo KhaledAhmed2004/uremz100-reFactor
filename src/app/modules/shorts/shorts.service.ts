@@ -1,5 +1,6 @@
 import { Content } from '../content/content.model';
 import mongoose from 'mongoose';
+import { Review } from '../review/review.model';
 
 const getShortsFeed = async (cursor?: string, limit: number = 10) => {
   const query: any = {
@@ -53,6 +54,16 @@ const getShortsFeed = async (cursor?: string, limit: number = 10) => {
   };
 };
 
+const incrementShortViewInDB = async (contentId: string) => {
+  const result = await Content.findByIdAndUpdate(
+    contentId,
+    { $inc: { views: 1, dailyViews: 1, weeklyViews: 1 } },
+    { new: true, select: 'title views' }
+  );
+  return result;
+};
+
 export const ShortsService = {
   getShortsFeed,
+  incrementShortViewInDB,
 };

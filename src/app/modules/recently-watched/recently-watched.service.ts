@@ -48,6 +48,9 @@ const trackProgressInDB = async (
     updateData.guestId = guestId;
   }
 
+  // Check if a record already exists before upserting
+  const existingRecord = await RecentlyWatched.findOne(query);
+
   // Upsert recently watched record
   const result = await RecentlyWatched.findOneAndUpdate(
     query,
@@ -59,10 +62,22 @@ const trackProgressInDB = async (
     },
   );
 
-  // If this is the first time watching (or progress is low), increment view count? 
-  // Usually, views are incremented on start. For now, let's just track progress.
-  if (watchedSeconds > 0) {
-    await Content.findByIdAndUpdate(contentId, { $inc: { views: 1 } });
+  // Calculate incremental watch time in seconds
+  let watchDurationDelta = watchedSeconds;
+  if (existingRecord && existingRecord.watchedSeconds < watchedSeconds) {
+    watchDurationDelta = watchedSeconds - existingRecord.watchedSeconds;
+  }
+
+  // If this is the first time watching (no existing record), increment view count
+  const incQuery: any = { totalWatchTime: watchDurationDelta };
+  if (!existingRecord && watchedSeconds > 0) {
+    incQuery.views = 1;
+    incQuery.dailyViews = 1;
+    incQuery.weeklyViews = 1;
+  }
+
+  if (watchDurationDelta > 0 || !existingRecord) {
+    await Content.findByIdAndUpdate(contentId, { $inc: incQuery });
   }
 
   return result;
@@ -73,15 +88,32 @@ const getRecentlyWatchedFromDB = async (userId?: string, guestId?: string) => {
 
   const query = userId ? { userId: new Types.ObjectId(userId) } : { guestId };
 
+  const cardFields = 'title poster type isPremium releaseDate rating publishedAt createdAt';
+
   const result = await RecentlyWatched.find(query)
-    .populate('contentId')
+    .populate('contentId', cardFields)
     .sort({ lastWatchedAt: -1 })
     .limit(20);
   
   return result;
 };
 
+const getProgressByContentIdFromDB = async (contentId: string, userId?: string, guestId?: string) => {
+  if (!userId && !guestId) return null;
+
+  const query: any = { contentId: new Types.ObjectId(contentId) };
+  if (userId) {
+    query.userId = new Types.ObjectId(userId);
+  } else {
+    query.guestId = guestId;
+  }
+
+  const result = await RecentlyWatched.findOne(query);
+  return result;
+};
+
 export const RecentlyWatchedService = {
   trackProgressInDB,
   getRecentlyWatchedFromDB,
+  getProgressByContentIdFromDB,
 };

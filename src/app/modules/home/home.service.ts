@@ -3,7 +3,7 @@ import { Content } from '../content/content.model';
 import { redisClient } from '../../../shared/redisClient';
 import { logger } from '../../../shared/logger';
 
-const cardFields = 'title thumbnail poster type rating isPremium isRecent';
+const cardFields = 'title thumbnail poster type rating isPremium releaseDate publishedAt createdAt';
 
 // Helper to fetch data with Redis Cache
 const fetchWithCache = async (key: string, fetcher: () => Promise<any>, ttlSeconds: number = 3600) => {
@@ -59,7 +59,7 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
   };
 
   const getTrending = () => fetchWithCache('home:trending', async () => {
-    const data = await Content.find({ views: { $gt: 100 } }).sort({ views: -1 }).select(cardFields).limit(10);
+    const data = await Content.find({ trendingScore: { $gt: 0 } }).sort({ trendingScore: -1 }).select(cardFields).limit(10);
     return { id: 'row_trending_now', type: 'TRENDING', title: 'Trending Now', items: data };
   });
 
@@ -69,12 +69,18 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
   });
 
   const getPopularSeries = () => fetchWithCache('home:popular_series', async () => {
-    const data = await Content.find({ type: 'SERIES', isPopularSeries: true }).select(cardFields).limit(10);
+    const data = await Content.find({
+      type: 'SERIES',
+      $or: [{ isPopularSeries: true }, { engagementScore: { $gte: 10 } }]
+    }).sort({ engagementScore: -1 }).select(cardFields).limit(10);
     return { id: 'row_popular_series', type: 'SERIES', title: 'Most Popular Series', items: data };
   });
 
   const getPopularMovies = () => fetchWithCache('home:popular_movies', async () => {
-    const data = await Content.find({ type: 'MOVIE' }).sort({ views: -1 }).select(cardFields).limit(10);
+    const data = await Content.find({
+      type: 'MOVIE',
+      $or: [{ isPopularSeries: true }, { engagementScore: { $gte: 10 } }]
+    }).sort({ engagementScore: -1 }).select(cardFields).limit(10);
     return { id: 'row_popular_movies', type: 'MOVIE', title: 'Most Popular Movies', items: data };
   });
 
@@ -84,12 +90,23 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
   });
 
   const getNewReleases = () => fetchWithCache('home:new_releases', async () => {
-    const data = await Content.find({ isRecent: true, status: 'PUBLISHED' }).sort({ createdAt: -1 }).select(cardFields).limit(10);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const data = await Content.find({
+      publishedAt: { $gte: thirtyDaysAgo },
+      status: 'PUBLISHED'
+    }).sort({ publishedAt: -1 }).select(cardFields).limit(10);
     return { id: 'row_new_releases', type: 'NEW_RELEASE', title: 'New Releases', items: data };
   });
 
   const getComingSoon = () => fetchWithCache('home:coming_soon', async () => {
-    const data = await Content.find({ status: 'DRAFT' }).sort({ createdAt: -1 }).select(cardFields).limit(10);
+    const now = new Date();
+    const data = await Content.find({
+      $and: [
+        { releaseDate: { $exists: true, $ne: null } },
+        { releaseDate: { $gte: now } },
+        { status: 'PUBLISHED' }
+      ]
+    }).sort({ releaseDate: 1 }).select(cardFields).limit(10);
     return { id: 'row_coming_soon', type: 'COMING_SOON', title: 'Coming Soon', items: data };
   });
 
@@ -101,17 +118,22 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
       getNewReleases()
     ];
   } else if (tab === 'vip') {
-    queries = [
-      fetchWithCache('home:vip_daily', async () => {
-        const data = await Content.find({ isPremium: true }).sort({ rating: -1 }).select(cardFields).limit(10);
-        return { id: 'row_vip_daily', type: 'VIP', title: "Today's VIP Picks", items: data };
-      }),
-      fetchWithCache('home:vip_weekly', async () => {
-        const data = await Content.find({ isPremium: true }).sort({ views: -1 }).select(cardFields).limit(10);
-        return { id: 'row_vip_weekly', type: 'VIP', title: "Weekly VIP Picks", items: data };
-      }),
-      getTrending() // Represents "Hot Now"
-    ];
+    if (filter === 'weekly') {
+      queries = [
+        fetchWithCache('home:vip_weekly_v2', async () => {
+          const data = await Content.find({ isPremium: true }).sort({ views: -1 }).select(cardFields).limit(10);
+          return { id: 'row_vip_weekly', type: 'VIP', title: "Weekly VIP Picks", items: data };
+        })
+      ];
+    } else {
+      // Default to daily
+      queries = [
+        fetchWithCache('home:vip_daily_v2', async () => {
+          const data = await Content.find({ isPremium: true }).sort({ rating: -1 }).select(cardFields).limit(10);
+          return { id: 'row_vip_daily', type: 'VIP', title: "Today's VIP Picks", items: data };
+        })
+      ];
+    }
   } else if (tab === 'ranking') {
     // Dynamic ranking based on filter (daily, weekly, monthly, popular)
     queries = [

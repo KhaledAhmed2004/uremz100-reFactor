@@ -3,13 +3,14 @@ import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { UserController } from './user.controller';
 import { UserValidation } from './user.validation';
-import { fileHandler } from '../../middlewares/fileHandler';
+import fileUploadHandler from '../../middlewares/fileUploadHandler';
 import { rateLimitMiddleware } from '../../middlewares/rateLimit';
 import { idempotency } from '../../middlewares/idempotency';
 import { verifyCaptcha } from '../../middlewares/captcha';
 import express from 'express';
 
 const router = express.Router();
+const upload = fileUploadHandler();
 
 // --- Public / General ---
 
@@ -17,11 +18,11 @@ const router = express.Router();
 router.post(
   '/',
   idempotency('registration'),
-  fileHandler([
-    { name: 'profileImage', maxCount: 1, subfolder: 'users/profiles' },
-    { name: 'verificationImage', maxCount: 1, subfolder: 'users/verifications' },
-    { name: 'verificationVideo', maxCount: 1, subfolder: 'users/videos' },
-  ], { maxFileSizeMB: 100 }),
+  upload.fields([
+    { name: 'profileImage', maxCount: 1 },
+    { name: 'verificationImage', maxCount: 1 },
+    { name: 'verificationVideo', maxCount: 1 },
+  ]),
   validateRequest(UserValidation.createUserZodSchema),
   verifyCaptcha(),
   UserController.createUser,
@@ -40,14 +41,11 @@ router.post(
     routeName: 'reverify',
   }),
   idempotency('reverify'),
-  fileHandler(
-    [
-      { name: 'profileImage', maxCount: 1, subfolder: 'users/profiles' },
-      { name: 'verificationImage', maxCount: 1, subfolder: 'users/verifications' },
-      { name: 'verificationVideo', maxCount: 1, subfolder: 'users/videos' },
-    ],
-    { maxFileSizeMB: 100 },
-  ),
+  upload.fields([
+    { name: 'profileImage', maxCount: 1 },
+    { name: 'verificationImage', maxCount: 1 },
+    { name: 'verificationVideo', maxCount: 1 },
+  ]),
   validateRequest(UserValidation.reverifyAccountZodSchema),
   UserController.reverifyAccount,
 );
@@ -85,7 +83,7 @@ router.get(
 router.patch(
   '/me',
   auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
-  fileHandler([{ name: 'profileImage', maxCount: 1, subfolder: 'users/profiles' }]),
+  upload.single('profileImage'),
   validateRequest(UserValidation.updateUserZodSchema),
   UserController.updateProfile,
 );

@@ -19,35 +19,71 @@ const formatData = (obj: any, seen = new WeakSet()): any => {
     return undefined;
   }
 
+  // Add original object to seen set BEFORE any transforms to prevent infinite recursion
+  // on circular Mongoose documents (e.g. populated virtuals)
+  seen.add(obj);
+
   // Handle Mongoose documents/Objects
+  // We only target Mongoose documents (which always have .toObject())
+  // We prefer toJSON() over toObject() so that global plugins (like hiding password, __v) are respected
   if (typeof obj.toObject === 'function') {
-    obj = obj.toObject();
+    obj = typeof obj.toJSON === 'function' ? obj.toJSON() : obj.toObject();
+    // Also add the transformed plain object to seen
+    if (obj && typeof obj === 'object') seen.add(obj);
   }
 
   // Handle ObjectId (Mongoose)
-  if (obj.constructor && obj.constructor.name === 'ObjectId') {
+  if (obj && obj.constructor && obj.constructor.name === 'ObjectId') {
     return obj.toString();
   }
-
-  // Add to seen set to prevent infinite recursion
-  seen.add(obj);
 
   if (Array.isArray(obj)) {
     return obj.map(v => formatData(v, seen));
   }
 
-  return Object.keys(obj).reduce((result: any, key) => {
-    let value = obj[key];
+  const keys = Object.keys(obj);
+  const result: any = {};
+  
+  const standardEntries: { key: string; value: any }[] = [];
+  let idEntry: { key: string; value: any } | null = null;
+  let createdAtEntry: { key: string; value: any } | null = null;
+  let updatedAtEntry: { key: string; value: any } | null = null;
 
-    // Recursive call for nested objects/arrays
+  for (const key of keys) {
+    let value = obj[key];
     value = formatData(value, seen);
 
-    // Alias _id to id
     const newKey = key === '_id' ? 'id' : snakeToCamel(key);
+    
+    if (newKey === 'id') {
+      idEntry = { key: newKey, value };
+    } else if (newKey === 'createdAt') {
+      createdAtEntry = { key: newKey, value };
+    } else if (newKey === 'updatedAt') {
+      updatedAtEntry = { key: newKey, value };
+    } else {
+      standardEntries.push({ key: newKey, value });
+    }
+  }
 
-    result[newKey] = value;
-    return result;
-  }, {});
+  // 1. Sort standard properties alphabetically to guarantee 100% deterministic consistency
+  // regardless of whether the data came from .lean(), .toJSON(), or manual object creation
+  standardEntries.sort((a, b) => a.key.localeCompare(b.key));
+  
+  for (const entry of standardEntries) {
+    result[entry.key] = entry.value;
+  }
+
+  // 2. Add createdAt near the end
+  if (createdAtEntry) result[createdAtEntry.key] = createdAtEntry.value;
+
+  // 3. Add updatedAt near the end
+  if (updatedAtEntry) result[updatedAtEntry.key] = updatedAtEntry.value;
+
+  // 4. Ensure 'id' is always the very LAST property per convention
+  if (idEntry) result[idEntry.key] = idEntry.value;
+
+  return result;
 };
 
 /**

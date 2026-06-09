@@ -34,7 +34,23 @@ const getRecentlyWatched = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getProgressByContentId = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as any;
+  const guestId = req.guestId;
+  const { contentId } = req.params;
+
+  const result = await RecentlyWatchedService.getProgressByContentIdFromDB(contentId, user?.id, guestId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Watch progress retrieved successfully',
+    data: result,
+  });
+});
+
 export const RecentlyWatchedController = {
   trackProgress,
   getRecentlyWatched,
+  getProgressByContentId,
 };

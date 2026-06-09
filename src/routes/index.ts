@@ -13,6 +13,7 @@ import { RecentlyWatchedRoutes } from '../app/modules/recently-watched/recently-
 import { HomeRoutes } from '../app/modules/home/home.route';
 import { MyCollectionRoutes } from '../app/modules/my-collection/my-collection.route';
 import { ShortsRoutes } from '../app/modules/shorts/shorts.route';
+import { RewardRoutes } from '../app/modules/reward/reward.route';
 
 const router = express.Router();
 
@@ -73,6 +74,10 @@ const apiRoutes = [
   {
     path: '/shorts',
     route: ShortsRoutes,
+  },
+  {
+    path: '/rewards',
+    route: RewardRoutes,
   },
 ];
 

@@ -73,8 +73,7 @@ const getAdminMovies = catchAsync(async (req: Request, res: Response) => {
     success: true,
     statusCode: StatusCodes.OK,
     message: 'Movies list fetched',
-    // @ts-ignore
-    pagination: result.pagination,
+    meta: result.pagination,
     data: result.data,
   });
 });
@@ -84,8 +83,7 @@ const getAdminSeries = catchAsync(async (req: Request, res: Response) => {
     success: true,
     statusCode: StatusCodes.OK,
     message: 'Series list fetched',
-    // @ts-ignore
-    pagination: result.pagination,
+    meta: result.pagination,
     data: result.data,
   });
 });
@@ -165,8 +163,7 @@ const getEpisodes = catchAsync(async (req: Request, res: Response) => {
     success: true,
     statusCode: StatusCodes.OK,
     message: 'Episodes list fetched',
-    // @ts-ignore
-    pagination: result.pagination,
+    meta: result.pagination,
     data: result.data,
   });
 });

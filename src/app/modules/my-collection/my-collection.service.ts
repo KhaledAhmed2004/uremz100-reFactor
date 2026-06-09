@@ -91,8 +91,11 @@ const getMyCollectionFromDB = async (userId: string | undefined, guestId: string
   if (!userId && !guestId) return { pagination: null, data: [] };
 
   const dbQuery = userId ? { userId: new Types.ObjectId(userId) } : { guestId };
+  
+  const cardFields = 'title poster thumbnail type isPremium releaseDate rating seasonNumber episodeNumber publishedAt createdAt';
   const myCollectionQuery = MyCollection.find(dbQuery)
-    .populate('itemId');
+    .populate('itemId', cardFields);
+
 
   const collectionQuery = new QueryBuilder(myCollectionQuery, query)
     .filter()

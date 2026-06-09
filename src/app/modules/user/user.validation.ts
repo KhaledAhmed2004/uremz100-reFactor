@@ -11,42 +11,10 @@ const createUserZodSchema = z.object({
         .string({ required_error: 'Email is required' })
         .email('Invalid email address')
         .toLowerCase(),
-      role: z.enum([USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH], { required_error: 'Role is required' }),
-      revertDate: z.string().datetime().optional(),
-      dateOfBirth: z.string({ required_error: 'Date of birth is required' }).datetime().refine((dob) => {
-        const birthDate = new Date(dob);
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-          age--;
-        }
-        return age >= 16;
-      }, 'Minimum age is 16 years'),
+      role: z.enum([USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER]).optional().default(USER_ROLES.USER),
       password: z.string().optional(),
-      profileImage: z.string().optional(),
-      verificationImage: z.string().optional(),
-      verificationVideo: z.string().optional(),
       googleId: z.string().optional(),
       appleId: z.string().optional(),
-      aboutMe: z.string().optional(),
-      revertStory: z.string().optional(),
-      interests: z
-        .preprocess((v: unknown) => {
-          if (typeof v === 'string') {
-            try {
-              return JSON.parse(v);
-            } catch {
-              return v;
-            }
-          }
-          return v;
-        }, z.array(z.string()))
-        .optional(),
-      // Cloudflare Turnstile token from the client widget. Verified by
-      // the `verifyCaptcha` middleware downstream. Optional in the schema
-      // so dev mode (TURNSTILE_SECRET unset) works without it; the
-      // middleware no-ops in that case.
       captchaToken: z.string().optional(),
     })
     .strict()
@@ -62,16 +30,6 @@ const createUserZodSchema = z.object({
           });
         }
       }
-
-      if (data.role === USER_ROLES.BROTHER || data.role === USER_ROLES.SISTER) {
-        if (!data.revertDate) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Revert date is required',
-            path: ['revertDate']
-          });
-        }
-      }
     }),
 });
 
@@ -79,8 +37,7 @@ const updateUserZodSchema = z.object({
   body: z.object({
     name: z.string().optional(),
     aboutMe: z.string().optional(),
-    revertStory: z.string().optional(),
-    revertDate: z.string().datetime().optional(),
+    dateOfBirth: z.string().datetime().optional(),
     interests: z
       .preprocess((v: unknown) => {
         if (typeof v === 'string') {
@@ -157,13 +114,10 @@ export const UserValidation = {
       ]).optional(),
       role: z.enum([
         USER_ROLES.SUPER_ADMIN, 
-        USER_ROLES.BROTHER, 
-        USER_ROLES.SISTER,
-        USER_ROLES.JUMMAH
+        USER_ROLES.ADMIN, 
+        USER_ROLES.USER
       ]).optional(),
-      revertDate: z.string().datetime().optional(),
       aboutMe: z.string().optional(),
-      revertStory: z.string().optional(),
       interests: z
         .preprocess((v: unknown) => {
           if (typeof v === 'string') {
@@ -236,21 +190,13 @@ export const UserValidation = {
       token: z
         .string({ required_error: 'Re-verification token is required' })
         .regex(/^[0-9a-fA-F]{64}$/, 'Invalid re-verification token format'),
-      // verificationImage / verificationVideo are set on req.body by
-      // fileHandler after upload. Both required for a fresh review.
-      verificationImage: z
-        .string({ required_error: 'verificationImage is required' })
-        .min(1, 'verificationImage is required'),
-      verificationVideo: z
-        .string({ required_error: 'verificationVideo is required' })
-        .min(1, 'verificationVideo is required'),
     }),
   }),
   getAllUserRolesZodSchema: z.object({
     query: z.object({
       searchTerm: z.string().optional(),
       email: z.string().optional(),
-      role: z.enum([USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH]).optional(),
+      role: z.enum([USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER]).optional(),
       status: z.enum([
         USER_STATUS.PENDING,
         USER_STATUS.ACTIVE,

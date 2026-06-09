@@ -3,6 +3,9 @@ import { JwtPayload } from 'jsonwebtoken';
 import { USER_STATUS, USER_ROLES } from '../../../enums/user';
 import { PipelineStage, Types } from 'mongoose';
 import { Subscription as SubscriptionModel } from '../subscription/subscription.model';
+import { Notification } from '../notification/notification.model';
+import { SubscriptionEvent } from '../subscription/subscription-event.model';
+import { SupportTicket } from '../support-ticket/support-ticket.model';
 import ApiError from '../../../errors/ApiError';
 import { emailHelper } from '../../../helpers/emailHelper';
 import { emailTemplate } from '../../../shared/emailTemplate';
@@ -61,6 +64,11 @@ const createUserToDB = async (
     if (!createUser) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Failed to create user');
     }
+
+    // Initialize Reward Wallet and Progress
+    const { Wallet, UserRewardProgress } = await import('../reward/reward.model');
+    await Wallet.create([{ user: createUser._id, goldBalance: 0, bonusLedger: [] }], { session });
+    await UserRewardProgress.create([{ user: createUser._id }], { session });
 
     // 4. Send Verification OTP (Only for public registration)
     if (!isAdmin) {
@@ -1056,6 +1064,7 @@ const revokeAllMySessionsFromDB = async (user: JwtPayload) => {
 };
 
 const exportMyDataFromDB = async (user: JwtPayload) => {
+  const { id } = user;
   const profile = await User.findById(id)
     .select(
       '-password -authentication -emailChange -tokenVersion -deletedAt',
@@ -1082,21 +1091,13 @@ const exportMyDataFromDB = async (user: JwtPayload) => {
   // Fan-out: each collection that references this user.
   const [
     notifications,
-    groupMemberships,
-    groupPosts,
-    postLikes,
-    postComments,
-    askQuestionData,
+    supportTickets,
     subscriptions,
     subscriptionEvents,
   ] = await Promise.all([
-    Notification.find({ userId: id }).lean(),
-    GroupMember.find({ userId: id }).lean(),
-    GroupPost.find({ userId: id }).lean(),
-    PostLike.find({ userId: id }).lean(),
-    PostComment.find({ userId: id }).lean(),
-    AskQuestion.find({ userId: id }).lean(),
-    Subscription.find({ userId: id }).lean(),
+    Notification.find({ receiver: id }).lean(),
+    SupportTicket.find({ userId: id }).lean(),
+    SubscriptionModel.find({ userId: id }).lean(),
     SubscriptionEvent.find({ userId: id }).lean(),
   ]);
 
@@ -1105,13 +1106,7 @@ const exportMyDataFromDB = async (user: JwtPayload) => {
     schemaVersion: 1,
     profile,
     notifications,
-    groupActivity: {
-      memberships: groupMemberships,
-      posts: groupPosts,
-      likes: postLikes,
-      comments: postComments,
-    },
-    askQuestionData,
+    supportTickets,
     subscriptions: {
       current: subscriptions,
       events: subscriptionEvents,

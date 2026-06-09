@@ -19,4 +19,11 @@ router.get(
   RecentlyWatchedController.getRecentlyWatched,
 );
 
+// Retrieves the progress of a specific content by its ID
+router.get(
+  '/content/:contentId',
+  guestOrAuth,
+  RecentlyWatchedController.getProgressByContentId,
+);
+
 export const RecentlyWatchedRoutes = router;

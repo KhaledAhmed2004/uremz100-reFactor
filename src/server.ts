@@ -11,6 +11,7 @@ import { CacheHelper } from './app/shared/CacheHelper';
 import { AccountPurgeScheduler } from './app/modules/user/accountPurgeScheduler';
 import { OrphanFileCleaner } from './shared/orphanFileCleaner';
 import { PendingEmailScheduler } from './app/modules/pending-email/pending-email.scheduler';
+import { TrendingCronJob } from './app/jobs/trending-cron.job';
 import { generateDefaultBanner } from './shared/bannerGenerator';
 import { generateStartupSummary, type StartupStatus } from './shared/startupSummary';
 import { createSpinner } from './shared/spinnerHelper';
@@ -152,6 +153,19 @@ async function main() {
       errorLogger.error('PendingEmailScheduler.start() failed:', peErr);
       // Don't throw — failed-state emails build up in the PendingEmail
       // collection and can be drained manually via the admin endpoint.
+    }
+
+    // Trending calculations & Popularity cron (nightly)
+    const trendingSpinner = createSpinner({
+      text: 'Starting trending cron job...',
+      color: 'cyan',
+    });
+    try {
+      TrendingCronJob.init();
+      trendingSpinner.succeed('Trending cron job running (nightly)');
+    } catch (tErr) {
+      trendingSpinner.warn('Trending cron job failed to start');
+      errorLogger.error('TrendingCronJob.init() failed:', tErr);
     }
 
     // Validate performance thresholds

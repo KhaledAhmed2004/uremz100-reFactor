@@ -19,6 +19,20 @@ const getShortsFeed = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const incrementShortView = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  const result = await ShortsService.incrementShortViewInDB(id);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'View count incremented successfully',
+    data: result,
+  });
+});
+
 export const ShortsController = {
   getShortsFeed,
+  incrementShortView,
 };

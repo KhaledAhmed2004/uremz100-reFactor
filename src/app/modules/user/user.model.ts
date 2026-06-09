@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import { model, Schema } from 'mongoose';
 import config from '../../../config';
-import { USER_ROLES, USER_STATUS, SUBSCRIPTION_STATUS, SUBSCRIPTION_TIER } from '../../../enums/user';
+import { USER_ROLES, USER_STATUS } from '../../../enums/user';
 import { IDeviceToken, IUser, UserModal } from './user.interface';
 
 // HMAC-SHA256 of the raw FCM/APNs token, keyed by the JWT secret (it's
@@ -74,7 +74,7 @@ const userSchema = new Schema<IUser>(
     role: {
       type: String,
       enum: Object.values(USER_ROLES),
-      required: true,
+      default: USER_ROLES.USER,
     },
     email: {
       type: String,
@@ -106,40 +106,19 @@ const userSchema = new Schema<IUser>(
       default: [],
       select: false,
     },
-    revertDate: {
-      type: Date,
-      required: function (this: IUser) {
-        return this.role === USER_ROLES.BROTHER || this.role === USER_ROLES.SISTER;
-      },
-    },
     dateOfBirth: {
       type: Date,
-      required: true,
+      required: false,
     },
     profileImage: {
       type: String,
-      required: true,
+      required: false,
       // Self-hosted SVG — served by `app.use(express.static('public'))`
       // in src/app.ts. Relative path; clients resolve against {{baseUrl}}.
       // Replaces the previous external CDN dependency on i.ibb.co (SPOF).
       default: '/default-avatar.svg',
     },
-    verificationImage: {
-      type: String,
-      required: function (this: IUser) {
-        return this.role === USER_ROLES.BROTHER || this.role === USER_ROLES.SISTER;
-      },
-    },
-    verificationVideo: {
-      type: String,
-      required: function (this: IUser) {
-        return this.role === USER_ROLES.BROTHER || this.role === USER_ROLES.SISTER;
-      },
-    },
     aboutMe: {
-      type: String,
-    },
-    revertStory: {
       type: String,
     },
     interests: {
@@ -155,7 +134,7 @@ const userSchema = new Schema<IUser>(
     status: {
       type: String,
       enum: Object.values(USER_STATUS),
-      default: USER_STATUS.PENDING,
+      default: USER_STATUS.ACTIVE,
     },
     rejectionReason: {
       type: String,
@@ -182,19 +161,6 @@ const userSchema = new Schema<IUser>(
       type: String,
       sparse: true,
       unique: true,
-    },
-    subscriptionTier: {
-      type: String,
-      enum: Object.values(SUBSCRIPTION_TIER),
-      default: SUBSCRIPTION_TIER.FREE,
-    },
-    subscriptionStatus: {
-      type: String,
-      enum: Object.values(SUBSCRIPTION_STATUS),
-      default: SUBSCRIPTION_STATUS.NONE,
-    },
-    subscriptionExpiryDate: {
-      type: Date,
     },
     appleOriginalTransactionId: {
       type: String,
