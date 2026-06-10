@@ -66,7 +66,7 @@ router.post(
 // User logout — invalidate active sessions/tokens
 router.post(
   '/logout',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   AuthController.logoutUser,
 );
 
@@ -99,7 +99,7 @@ router.post(
 // Change password — authenticated user provides old/new password
 router.post(
   '/change-password',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   validateRequest(AuthValidation.createChangePasswordZodSchema),
   AuthController.changePassword,
 );

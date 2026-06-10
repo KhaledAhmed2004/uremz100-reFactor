@@ -53,7 +53,7 @@ router.post(
 // Public user details (Authenticated users only) — rate limited
 router.get(
   '/:userId/public',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   rateLimitMiddleware({
     windowMs: 60_000,
     max: 60,
@@ -75,14 +75,14 @@ router.get(
 // Fetch own profile details
 router.get(
   '/me',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   UserController.getUserProfile,
 );
 
 // Update own profile
 router.patch(
   '/me',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   upload.single('profileImage'),
   validateRequest(UserValidation.updateUserZodSchema),
   UserController.updateProfile,
@@ -92,7 +92,7 @@ router.patch(
 // Restore happens through POST /auth/restore-account.
 router.delete(
   '/me',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   idempotency('account-delete'),
   validateRequest(UserValidation.deleteAccountZodSchema),
   UserController.requestAccountDeletion,
@@ -103,7 +103,7 @@ router.delete(
 // address and a heads-up to the OLD address.
 router.post(
   '/me/email-change/request',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   idempotency('email-change-request'),
   validateRequest(UserValidation.requestEmailChangeZodSchema),
   UserController.requestEmailChange,
@@ -114,7 +114,7 @@ router.post(
 // invalid), and clears the refresh cookie.
 router.post(
   '/me/email-change/confirm',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   idempotency('email-change-confirm'),
   validateRequest(UserValidation.confirmEmailChangeZodSchema),
   UserController.confirmEmailChange,
@@ -124,7 +124,7 @@ router.post(
 // requesting user as a JSON envelope.
 router.post(
   '/me/data-export',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   idempotency('data-export'),
   UserController.exportMyData,
 );
@@ -133,7 +133,7 @@ router.post(
 // metadata only; never the raw FCM/APNs token.
 router.get(
   '/me/sessions',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   UserController.listMySessions,
 );
 
@@ -142,7 +142,7 @@ router.get(
 // before `:tokenId` so Express doesn't match `revoke-all` as an id.
 router.post(
   '/me/sessions/revoke-all',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   idempotency('sessions-revoke-all'),
   UserController.revokeAllMySessions,
 );
@@ -152,7 +152,7 @@ router.post(
 // expiry (short-lived).
 router.delete(
   '/me/sessions/:tokenId',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   validateRequest(UserValidation.revokeSessionZodSchema),
   UserController.revokeMySession,
 );

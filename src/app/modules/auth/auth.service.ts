@@ -59,17 +59,10 @@ const loginUserFromDB = async (
   }
 
   if (isExistUser.status === USER_STATUS.PENDING) {
-    if (!isExistUser.isVerified) {
-      throw new ApiError(
-        StatusCodes.FORBIDDEN,
-        'Your account is pending verification. Please verify your email.'
-      );
-    } else {
-      throw new ApiError(
-        StatusCodes.FORBIDDEN,
-        'Admin Verification Pending. Your account is currently under review.'
-      );
-    }
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      'Your account is pending verification. Please verify your email.'
+    );
   }
 
   if (isExistUser.status === USER_STATUS.REJECTED) {
@@ -250,25 +243,11 @@ const verifyEmailToDB = async (payload: IVerifyEmail) => {
     );
 
     if (updatedUser?.status === USER_STATUS.PENDING) {
-      if (updatedUser.role === USER_ROLES.JUMMAH) {
-        // Automatically make them ACTIVE since they do not need admin approval
-        await User.findOneAndUpdate(
-          { _id: updatedUser._id },
-          { $set: { status: USER_STATUS.ACTIVE } }
-        );
-      } else {
-        message =
-          'Email verified successfully. Your account is now pending admin approval. You will receive an email once an administrator approves your account.';
-        return {
-          data: {
-            email: updatedUser.email,
-            isVerified: updatedUser.isVerified,
-            status: updatedUser.status,
-          },
-          message,
-          tokens: null,
-        };
-      }
+      // Automatically make them ACTIVE since there is no admin verification step
+      await User.findOneAndUpdate(
+        { _id: updatedUser._id },
+        { $set: { status: USER_STATUS.ACTIVE } }
+      );
     }
 
     // Auto-login for users who are already ACTIVE (e.g. email change or re-verify)

@@ -7,6 +7,7 @@ import { Schema } from 'mongoose';
  */
 export const toJSONPlugin = (schema: Schema) => {
   schema.set('toJSON', {
+    virtuals: true,
     transform: (doc, ret) => {
       // 1. Convert _id to id safely
       if (ret._id) {

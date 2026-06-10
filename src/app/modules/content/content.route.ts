@@ -11,7 +11,7 @@ const upload = fileUploadHandler();
 // Search and Common
 router.get(
   '/search',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   rateLimitMiddleware({
     windowMs: 60_000,
     max: 60,
@@ -22,13 +22,13 @@ router.get(
 
 router.get(
   '/best-movies',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   ContentController.getBestMovies,
 );
 
 router.get(
   '/coming-soon',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   ContentController.getComingSoonContent,
 );
 
@@ -46,7 +46,7 @@ router.post(
 
 router.get(
   '/movies',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   ContentController.getAdminMovies,
 );
 
