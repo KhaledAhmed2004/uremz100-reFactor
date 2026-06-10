@@ -39,6 +39,28 @@ const removeFromCollection = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const removeFromCollectionBulk = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as any;
+  const guestId = req.guestId;
+  const { itemIds } = req.body;
+
+  const deletedCount = await MyCollectionService.removeFromCollectionBulkFromDB({
+    userId: user?.id,
+    guestId,
+    itemIds,
+  });
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: `${deletedCount} items removed from collection successfully`,
+    data: {
+      deletedCount,
+      itemIds,
+    },
+  });
+});
+
 const getMyCollection = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as any;
   const guestId = req.guestId;
@@ -56,5 +78,6 @@ const getMyCollection = catchAsync(async (req: Request, res: Response) => {
 export const MyCollectionController = {
   addToCollection,
   removeFromCollection,
+  removeFromCollectionBulk,
   getMyCollection,
 };

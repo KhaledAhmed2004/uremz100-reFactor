@@ -584,7 +584,7 @@ const updateUserByAdminInDB = async (id: string, payload: Partial<IUser>) => {
     }
   }
 
-  // if (payload.gender !== undefined) (user as any).gender = payload.gender;
+  if (payload.gender !== undefined) (user as any).gender = payload.gender;
   if (payload.profileImage !== undefined) (user as any).profileImage = payload.profileImage;
   if (payload.status !== undefined) (user as any).status = payload.status;
   if (payload.role !== undefined) (user as any).role = payload.role;

@@ -32,6 +32,12 @@ router.get(
   ContentController.getComingSoonContent,
 );
 
+router.get(
+  '/:contentId/details',
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
+  ContentController.getContentDetailsPublic,
+);
+
 // Movies Management
 router.post(
   '/movies',

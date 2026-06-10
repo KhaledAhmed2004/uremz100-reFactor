@@ -36,6 +36,7 @@ const createUserZodSchema = z.object({
 const updateUserZodSchema = z.object({
   body: z.object({
     name: z.string().optional(),
+    gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
     aboutMe: z.string().optional(),
     dateOfBirth: z.string().datetime().optional(),
     interests: z
@@ -103,6 +104,7 @@ export const UserValidation = {
     }),
     body: z.object({
       name: z.string().optional(),
+      gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
       email: z.string().email('Invalid email address').toLowerCase().optional(),
       dateOfBirth: z.string().datetime().optional(),
       status: z.enum([

@@ -96,6 +96,16 @@ const getSeriesDetails = catchAsync(async (req: Request, res: Response) => {
     data: result,
   });
 });
+
+const getContentDetailsPublic = catchAsync(async (req: Request, res: Response) => {
+  const result = await ContentService.getContentDetailsPublicFromDB(req.params.contentId);
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Content details retrieved successfully',
+    data: result,
+  });
+});
 const createSeason = catchAsync(async (req: Request, res: Response) => {
   const { seriesId } = req.params;
   const payload = { ...req.body };
@@ -422,5 +432,6 @@ export const ContentController = {
   updateMovieStatus: updateMovieStatus,
   initiateUpload: initiateUpload,
   getPresignedUrls: getPresignedUrls,
-  completeUpload: completeUpload
+  completeUpload: completeUpload,
+  getContentDetailsPublic: getContentDetailsPublic
 };

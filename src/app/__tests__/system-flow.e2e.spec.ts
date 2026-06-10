@@ -106,6 +106,14 @@ beforeAll(async () => {
       trendingScore: 20 + i,
     });
   }
+
+  // Create a Legal Page for the public APIs test
+  const { LegalPage } = await import('../modules/legal/legal.model');
+  await LegalPage.create({
+    slug: 'terms-and-conditions',
+    title: 'Terms and Conditions',
+    content: '<p>These are the terms...</p>',
+  });
 });
 
 afterAll(async () => {
@@ -350,14 +358,271 @@ Feature: Account Management
       expect(finalLoginRes.status).toBe(StatusCodes.OK);
       userToken = finalLoginRes.body.data.accessToken;
     });
+
+    it('should allow an authenticated user to update their profile information', async () => {
+      console.info(`
+📖 BDD SCENARIO: 08. UPDATE USER PROFILE
+Feature: Profile Management
+  As a logged-in user
+  I want to update my personal information (name, gender, date of birth)
+  So that my profile remains accurate
+
+  Given the user is authenticated
+  When they submit a request to update their name, gender, and date of birth
+  Then the system validates the input
+  And updates the user's profile in the database
+  And returns the updated user object
+`);
+      const updatedInfo = {
+        name: 'Updated E2E User',
+        gender: 'MALE',
+        dateOfBirth: '1990-01-01T00:00:00.000Z'
+      };
+
+      const res = await request(app)
+        .patch('/api/v1/users/me')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send(updatedInfo);
+
+      logApi('PATCH', '/api/v1/users/me', { headers: { Authorization: `Bearer ${userToken}` }, body: updatedInfo }, res.body, 'PATCH-UPDATE-PROFILE', 'User updates their profile');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.name).toBe(updatedInfo.name);
+      expect(res.body.data.gender).toBe(updatedInfo.gender);
+      expect(new Date(res.body.data.dateOfBirth).toISOString()).toBe(updatedInfo.dateOfBirth);
+    });
+
+    it('should request an email change and send an OTP (Step 1)', async () => {
+      console.info(`
+📖 BDD SCENARIO: 09. EMAIL CHANGE REQUEST
+Feature: Account Settings
+  As a logged-in user
+  I want to initiate an email address change
+  So that I can use a new email for my account
+
+  Given the user is authenticated
+  When they provide their current password and a new email address
+  Then the system verifies the password
+  And generates an OTP and sends it to the new email address
+  And temporarily stores the pending email change request
+`);
+      const newEmail = 'new_email_e2e@test.com';
+      const res = await request(app)
+        .post('/api/v1/users/me/email-change/request')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          newEmail,
+          password: TEST_PASSWORD,
+        });
+
+      logApi('POST', '/api/v1/users/me/email-change/request', { headers: { Authorization: `Bearer ${userToken}` }, body: { newEmail, password: TEST_PASSWORD } }, res.body, 'POST-EMAIL-CHANGE-REQUEST', 'User requests email change');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+
+      // Verify OTP is stored in the DB
+      const userAfterRequest = await User.findById(testUserId).select('+emailChange');
+      expect(userAfterRequest?.emailChange?.otp).toBeDefined();
+      expect(userAfterRequest?.emailChange?.newEmail).toBe(newEmail);
+    });
+
+    it('should confirm the email change with the OTP (Step 2)', async () => {
+      console.info(`
+📖 BDD SCENARIO: 10. EMAIL CHANGE CONFIRM
+Feature: Account Settings
+  As a logged-in user
+  I want to confirm my new email address using an OTP
+  So that the email change is finalized securely
+
+  Given the user has a pending email change request
+  When they submit the correct OTP
+  Then the system validates the OTP
+  And permanently updates the user's email address
+  And revokes all previous active sessions for security
+`);
+      // Fetch OTP directly from the test DB since this is an E2E test
+      const userBeforeConfirm = await User.findById(testUserId).select('+emailChange');
+      const otp = userBeforeConfirm?.emailChange?.otp;
+      
+      expect(otp).toBeDefined();
+
+      const res = await request(app)
+        .post('/api/v1/users/me/email-change/confirm')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ otp });
+
+      logApi('POST', '/api/v1/users/me/email-change/confirm', { headers: { Authorization: `Bearer ${userToken}` }, body: { otp } }, res.body, 'POST-EMAIL-CHANGE-CONFIRM', 'User confirms email change');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+
+      // Update testUserEmail for any subsequent tests, and we must log in again 
+      // because tokenVersion was bumped!
+      testUserEmail = 'new_email_e2e@test.com';
+
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: testUserEmail, password: TEST_PASSWORD });
+      
+      expect(loginRes.status).toBe(StatusCodes.OK);
+      userToken = loginRes.body.data.accessToken;
+    });
+
+    it('should allow a Guest User to read the legal pages before registering', async () => {
+      console.info(`
+📖 BDD SCENARIO: 11. PUBLIC LEGAL PAGES
+Feature: Legal Information
+  As a prospective or existing user
+  I want to read the legal pages (e.g., terms and conditions)
+  So that I understand the rules before signing up
+
+  Given the system has public legal pages available
+  When an unauthenticated user requests the list of legal pages
+  Then the system returns all available legal pages
+  And when the user requests a specific legal page by slug
+  Then the system returns the content of that specific page
+`);
+      // 1. Get all legal pages
+      const resAll = await request(app).get('/api/v1/legals');
+      logApi('GET', '/api/v1/legals', {}, resAll.body, 'GET-ALL-LEGALS', 'User fetches all legal pages');
+      
+      expect(resAll.status).toBe(StatusCodes.OK);
+      expect(resAll.body.success).toBe(true);
+      // Data might be paginated or array, but according to typical implementation it's an array directly or inside data.data
+      const results = resAll.body.data?.data || resAll.body.data;
+      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
+      
+      // 2. Get specific legal page by slug
+      const slug = 'terms-and-conditions';
+      const resSingle = await request(app).get(`/api/v1/legals/${slug}`);
+      logApi('GET', `/api/v1/legals/${slug}`, {}, resSingle.body, 'GET-SINGLE-LEGAL', 'User fetches a specific legal page');
+      
+      expect(resSingle.status).toBe(StatusCodes.OK);
+      expect(resSingle.body.success).toBe(true);
+      expect(resSingle.body.data.slug).toBe(slug);
+      expect(resSingle.body.data.title).toBe('Terms and Conditions');
+    });
+
+    let dummyEmailToRestore = 'to_be_restored@e2e.test';
+    let dummyPasswordToRestore = 'RestoreMe123!';
+
+    it('should allow a user to soft-delete their account (Step 12)', async () => {
+      console.info(`
+📖 BDD SCENARIO: 12. ACCOUNT DELETION
+Feature: Account Settings
+  As a logged-in user
+  I want to delete my account when I no longer need it
+  So that my data is removed securely (with a 30-day grace period)
+
+  Given the user provides their valid password
+  When they submit a request to delete their account
+  Then the system validates the password
+  And sets the account status to DELETED
+  And invalidates their current session
+`);
+      // First, create and login a dummy user just for this test so we don't break the rest of the E2E flow
+      const dummyUser = await User.create({
+        name: 'Restore Me',
+        role: USER_ROLES.USER,
+        email: dummyEmailToRestore,
+        password: dummyPasswordToRestore,
+        isVerified: true,
+      });
+
+      const loginRes = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: dummyEmailToRestore, password: dummyPasswordToRestore });
+      
+      const dummyToken = loginRes.body.data.accessToken;
+
+      // Now, test the deletion API
+      const deleteRes = await request(app)
+        .delete('/api/v1/users/me')
+        .set('Authorization', `Bearer ${dummyToken}`)
+        .send({ password: dummyPasswordToRestore });
+
+      logApi('DELETE', '/api/v1/users/me', { headers: { Authorization: `Bearer ${dummyToken}` }, body: { password: dummyPasswordToRestore } }, deleteRes.body, 'DELETE-ACCOUNT', 'User deletes their account');
+
+      expect(deleteRes.status).toBe(StatusCodes.OK);
+      expect(deleteRes.body.success).toBe(true);
+
+      // Verify the user is soft-deleted in the database
+      const deletedUser = await User.findById(dummyUser._id).select('+status');
+      expect(deletedUser?.status).toBe(USER_STATUS.DELETED);
+    });
+
+    it('should prevent a deleted user from logging in and suggest contacting support (Step 13)', async () => {
+      console.info(`
+📖 BDD SCENARIO: 13. LOGIN PREVENTION FOR DELETED ACCOUNTS
+Feature: Account Security & Frontend Integration
+  As a recently deleted user
+  I want to be informed that my account is deleted if I try to log in again
+  So that the frontend app can prompt me to restore it
+
+  Given the user's account is in DELETED status (Soft Deleted)
+  When the user attempts to log in normally (/api/v1/auth/login)
+  Then the backend system immediately rejects the login attempt
+  And returns a 403 FORBIDDEN status with the message "Your account has been deleted"
+  [FRONTEND BEHAVIOR]: The frontend catches this specific 403 error and shows a pop-up:
+  "Your account is currently deleted. Do you want to restore it? [Yes, Restore]"
+`);
+      const loginAttempt = await request(app)
+        .post('/api/v1/auth/login')
+        .send({ email: dummyEmailToRestore, password: dummyPasswordToRestore });
+
+      logApi('POST', '/api/v1/auth/login', { body: { email: dummyEmailToRestore, password: dummyPasswordToRestore } }, loginAttempt.body, 'POST-LOGIN-DELETED', 'Deleted user attempts to log in');
+
+      expect(loginAttempt.status).toBe(StatusCodes.FORBIDDEN);
+      expect(loginAttempt.body.success).toBe(false);
+      expect(loginAttempt.body.message).toContain('Your account has been deleted');
+    });
+
+    it('should allow a user to restore a soft-deleted account within the grace period (Step 14)', async () => {
+      console.info(`
+📖 BDD SCENARIO: 14. ACCOUNT RESTORATION
+Feature: Account Recovery
+  As a user who recently deleted my account
+  I want to easily restore my account via the frontend prompt
+  So that I can regain access to my profile without creating a new one
+
+  Given the frontend app has prompted the user to restore their account
+  When the user clicks "Yes, Restore" and the app hits the restore API (/api/v1/auth/restore-account)
+  Then the backend validates their existing email and password
+  And smoothly changes the account status from DELETED back to ACTIVE
+  And immediately issues new access and refresh tokens
+  And the user is auto-logged in
+`);
+      const restoreRes = await request(app)
+        .post('/api/v1/auth/restore-account')
+        .send({ email: dummyEmailToRestore, password: dummyPasswordToRestore });
+
+      logApi('POST', '/api/v1/auth/restore-account', { body: { email: dummyEmailToRestore, password: dummyPasswordToRestore } }, restoreRes.body, 'POST-RESTORE-ACCOUNT', 'User restores their deleted account');
+
+      expect(restoreRes.status).toBe(StatusCodes.OK);
+      expect(restoreRes.body.success).toBe(true);
+      expect(restoreRes.body.data.accessToken).toBeDefined();
+
+      // Verify the user is ACTIVE again in the database
+      const restoredUser = await User.findOne({ email: dummyEmailToRestore }).select('+status');
+      expect(restoredUser?.status).toBe(USER_STATUS.ACTIVE);
+    });
   });
 
   describe('1. Home Page Flow', () => {
     it('should return search results from the home page search bar', async () => {
       console.info(`
-📖 DOC: 
-When a user searches for a movie from the search bar (e.g., 'Batman'), 
-the system queries the content collection to find matches and returns them instantly.
+📖 BDD SCENARIO: 01. HOME PAGE SEARCH
+Feature: Content Discovery
+  As a user looking for specific content
+  I want to search for a movie by its title
+  So that I can quickly find what I want to watch
+
+  Given the user is on the home page
+  When they type a search term (e.g., 'Batman') in the search bar
+  Then the system queries the content collection
+  And returns a list of movies matching the search term
 `);
       const res = await request(app)
         .get('/api/v1/contents/search?searchTerm=Batman')
@@ -377,14 +642,16 @@ the system queries the content collection to find matches and returns them insta
 
     it('should load the popular tab successfully', async () => {
       console.info(`
-📖 DOC: 
-Step 2: The user switches to the 'Popular' tab on the home screen.
-The system dynamically fetches the 'Trending Now' and 'Most Popular' sections.
-Instead of relying on simple "all-time views" (which unfairly favors old content), 
-the system uses a Netflix-style hybrid algorithm. It calculates a 'trendingScore' 
-based on weekly momentum, and an 'engagementScore' based on a composite of views, 
-watch time, and user ratings. This ensures that only high-quality, truly viral 
-content floats to the top of the user's feed.
+📖 BDD SCENARIO: 02. POPULAR TAB WITH DYNAMIC RANKING ALGORITHM
+Feature: Content Discovery
+  As a user browsing for popular content
+  I want to see currently trending and highly engaging videos
+  So that I can watch what everyone else is enjoying right now
+
+  Given the user navigates to the 'Popular' tab on the home screen
+  When the app requests the popular content feed
+  Then the system calculates ranking using a hybrid algorithm (momentum, watch time, views)
+  And returns dynamically sorted sections like 'Trending Now' and 'Most Popular'
 `);
       const res = await request(app)
         .get('/api/v1/home/content?tab=popular')
@@ -404,12 +671,17 @@ content floats to the top of the user's feed.
 
     it('should load the new tab successfully and include virtual isRecent flag', async () => {
       console.info(`
-📖 DOC: 
-The 'New' tab displays freshly published movies and series.
-Instead of relying on a manual boolean flag, the system automatically 
-calculates a 30-day rolling window based on the 'publishedAt' date. 
-It dynamically appends an 'isRecent' virtual field to the API response 
-so the frontend can display a "NEW" badge without any extra logic!
+📖 BDD SCENARIO: 03. NEW RELEASES TAB WITH VIRTUAL BADGE
+Feature: Content Discovery
+  As a user looking for fresh content
+  I want to easily identify newly released movies and series
+  So that I can stay up-to-date with the latest entertainment
+
+  Given the user navigates to the 'New' tab on the home screen
+  When the app requests the new content feed
+  Then the system calculates a 30-day rolling window based on the 'publishedAt' date
+  And dynamically attaches an 'isRecent' flag to freshly published items
+  And returns the new releases section
 `);
       const res = await request(app)
         .get('/api/v1/home/content?tab=new')
@@ -433,9 +705,16 @@ so the frontend can display a "NEW" badge without any extra logic!
 
     it('should load the vip tab successfully with default daily filter', async () => {
       console.info(`
-📖 DOC: 
-The 'VIP' tab loads premium content exclusively available to paid subscribers.
-By default, when no filter is provided, it returns "Today's VIP Picks".
+📖 BDD SCENARIO: 04. VIP TAB (DEFAULT DAILY PICKS)
+Feature: Premium Content Discovery
+  As a subscribed user
+  I want to explore premium content recommendations
+  So that I can discover exclusive VIP movies and series
+
+  Given the user navigates to the 'VIP' tab on the home screen
+  When the app requests the VIP feed without a specific filter
+  Then the system defaults to "Today's VIP Picks"
+  And returns the premium content sections
 `);
       const res = await request(app)
         .get('/api/v1/home/content?tab=vip')
@@ -452,9 +731,16 @@ By default, when no filter is provided, it returns "Today's VIP Picks".
 
     it('should load the vip tab successfully with weekly filter', async () => {
       console.info(`
-📖 DOC: 
-Users can click the "Weekly" toggle on the VIP page to filter premium content 
-based on weekly performance.
+📖 BDD SCENARIO: 05. VIP TAB (WEEKLY FILTER)
+Feature: Premium Content Discovery
+  As a subscribed user
+  I want to filter premium content by weekly performance
+  So that I can see the best exclusive content of the week
+
+  Given the user is on the 'VIP' tab
+  When they apply the "Weekly" filter
+  Then the system filters the premium content based on weekly performance
+  And returns the 'Weekly VIP' section
 `);
       const res = await request(app)
         .get('/api/v1/home/content?tab=vip&filter=weekly')
@@ -471,9 +757,16 @@ based on weekly performance.
 
     it('should load the ranking tab successfully', async () => {
       console.info(`
-📖 DOC: 
-The 'Ranking' tab shows leaderboards (e.g., weekly or monthly top charts) 
-based on total views and user engagement.
+📖 BDD SCENARIO: 06. RANKING LEADERBOARDS
+Feature: Content Discovery
+  As a competitive or curious user
+  I want to see the top ranking charts
+  So that I know which content is the most successful globally
+
+  Given the user navigates to the 'Ranking' tab
+  When the app requests the ranking feed with a filter (e.g., weekly)
+  Then the system compiles leaderboards based on total views and engagement
+  And returns the sorted ranking lists
 `);
       const res = await request(app)
         .get('/api/v1/home/content?tab=ranking&filter=weekly')
@@ -484,13 +777,45 @@ based on total views and user engagement.
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
     });
+  });
+
+  describe('2. Content Details Flow', () => {
+    it('should fetch the full details of the selected movie', async () => {
+      console.info(`
+📖 BDD SCENARIO: 07. FETCH CONTENT DETAILS
+Feature: Content Discovery
+  As a user who just clicked on a movie poster
+  I want to see the full details of the movie
+  So that I can read the description, see the cast, and decide to watch it
+
+  Given the user clicks on a movie from the Home feed
+  When the mobile app requests the public content details for that movie ID
+  Then the backend returns the full metadata including title, description, and cast
+  And the UI displays the Movie Details screen
+`);
+      const res = await request(app)
+        .get(`/api/v1/contents/${theMovieId}/details`)
+        .set('Authorization', `Bearer ${userToken}`);
+
+      logApi('GET', `/api/v1/contents/${theMovieId}/details`, { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'GET-CONTENT-DETAILS', 'User fetches content details to view movie page');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.title).toBeDefined();
+    });
 
     it('should fetch the specific watch progress for a selected movie (Option 3 Architecture)', async () => {
       console.info(`
-📖 DOC: 
-When a user clicks on a movie from the search results or a category (not from "Continue Watching"),
-the frontend makes a specific request to fetch the user's progress for that single movie.
-This allows playback to resume from the exact paused location, independent of the home page feed.
+📖 BDD SCENARIO: 08. FETCH SPECIFIC WATCH PROGRESS
+Feature: Continue Watching
+  As a user opening a movie from search or category
+  I want my previous watch progress to be loaded
+  So that playback resumes exactly where I left off
+
+  Given the user selects a movie to watch
+  When the frontend requests the specific watch progress for that movie ID
+  Then the backend retrieves the exact paused location (watchedSeconds)
+  And returns the progress data
 `);
       const res = await request(app)
         .get(`/api/v1/recently-watched/content/${theMovieId}`)
@@ -506,8 +831,16 @@ This allows playback to resume from the exact paused location, independent of th
 
     it('should track progress for the selected movie to appear in Recently Watched', async () => {
       console.info(`
-📖 DOC: 
-While watching the movie, the app tracks progress. This ensures the movie appears in the "Continue Watching" list.
+📖 BDD SCENARIO: 09. TRACK WATCH PROGRESS
+Feature: Continue Watching
+  As a user actively watching a movie
+  I want my progress to be continuously tracked
+  So that the movie appears in my 'Continue Watching' list later
+
+  Given the user is watching a movie in the player
+  When the app periodically sends the current playback time to the tracking API
+  Then the backend securely saves the watched seconds
+  And updates or creates a progress record for that user and movie
 `);
       const res = await request(app)
         .post('/api/v1/recently-watched/track-progress')
@@ -525,9 +858,16 @@ While watching the movie, the app tracks progress. This ensures the movie appear
 
     it('should return the "Continue Watching" section in the popular tab after tracking progress', async () => {
       console.info(`
-📖 DOC: 
-Because the user just tracked progress for a movie, reloading the Home page (Popular tab)
-will now dynamically return the 'Continue Watching' row as the very first section!
+📖 BDD SCENARIO: 10. DYNAMIC CONTINUE WATCHING ROW
+Feature: Continue Watching
+  As a returning user who has partially watched content
+  I want to see a 'Continue Watching' section at the top of my home feed
+  So that I can quickly jump back into my movies
+
+  Given the user has recently tracked progress for a movie
+  When they reload the Home page (Popular tab)
+  Then the backend dynamically detects the active watch history
+  And injects the 'Continue Watching' row as the very first section in the response
 `);
       const res = await request(app)
         .get('/api/v1/home/content?tab=popular')
@@ -546,7 +886,7 @@ will now dynamically return the 'Continue Watching' row as the very first sectio
 
   });
 
-  describe('2. Shorts Page & Player Flow', () => {
+  describe('3. Shorts Page & Player Flow', () => {
     describe('A. Infinite Scrolling (Feed)', () => {
       it('Step 1: User opens the shorts feed and the first 5 videos are loaded without a cursor', async () => {
         console.info(`
@@ -668,7 +1008,7 @@ Feature: Content Curation
     });
   });
 
-  describe('3. My List Page Flow', () => {
+  describe('4. My List (Recently Watched & My Collection) Flow', () => {
     beforeAll(async () => {
       // Seed data to ensure these tests can be run in isolation (e.g. from Vitest UI)
       await request(app).post('/api/v1/recently-watched/track-progress').set('Authorization', `Bearer ${userToken}`).send({
@@ -738,9 +1078,59 @@ Feature: Personal Library
       if (items.length === 0) console.log('MY COLLECTION GET ITEMS:', JSON.stringify(res.body, null, 2));
       expect(items.length).toBeGreaterThan(0);
     });
+
+    it('should bulk remove items from My Collection', async () => {
+      console.info(`
+📖 BDD SCENARIO: 03. BULK REMOVE ITEMS FROM MY COLLECTION
+Feature: Collection Management
+  As a user curating content
+  I want to remove multiple items from my collection at once
+  So that I can manage my saved content efficiently
+
+  Given the user has multiple items in their collection
+  When the user selects multiple items using checkboxes
+  And clicks the "Remove" bulk button
+  Then the backend deletes all selected items from the user's collection
+  And the UI updates to remove all selected items from the list
+  And shows success message with count of removed items
+
+  [TECHNICAL NOTE]: The 'itemIds' array gracefully accepts EITHER the MyCollection document IDs ('_id') OR the actual Movie/Series Content IDs ('itemId'). The backend will successfully delete the items in both cases using a smart $or query.
+`);
+      // First, fetch the current collection to get the items to remove
+      const collectionRes = await request(app)
+        .get('/api/v1/my-collection')
+        .set('Authorization', `Bearer ${userToken}`);
+      
+      const items = collectionRes.body.data || collectionRes.body.data?.data;
+      if (!items || items.length === 0) return; // Skip if empty (though it shouldn't be based on previous test)
+
+      const itemIdsToRemove = items.map((item: any) => item._id || item.id);
+
+      const bulkDeleteRes = await request(app)
+        .delete('/api/v1/my-collection/bulk')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({ itemIds: itemIdsToRemove });
+
+      logApi('DELETE', '/api/v1/my-collection/bulk', { headers: { Authorization: `Bearer ${userToken}` }, body: { itemIds: itemIdsToRemove } }, bulkDeleteRes.body, 'DELETE-BULK-MY-COLLECTION', 'User removes multiple items from collection');
+
+      expect(bulkDeleteRes.status).toBe(StatusCodes.OK);
+      expect(bulkDeleteRes.body.success).toBe(true);
+      expect(bulkDeleteRes.body.data.deletedCount).toBe(itemIdsToRemove.length);
+      
+      // Verify the items are actually removed
+      const emptyRes = await request(app)
+        .get('/api/v1/my-collection')
+        .set('Authorization', `Bearer ${userToken}`);
+      
+      const remainingItems = emptyRes.body.data || emptyRes.body.data?.data;
+      
+      // Filter out the items we just deleted to make sure they are gone
+      const foundDeletedItems = remainingItems.filter((item: any) => itemIdsToRemove.includes(item._id || item.id));
+      expect(foundDeletedItems.length).toBe(0);
+    });
   });
 
-  describe('4. Rewards Page Flow', () => {
+  describe('5. Rewards Page Flow', () => {
     it('should show the initial wallet balance as 0', async () => {
       console.info(`
 📖 DOC: 

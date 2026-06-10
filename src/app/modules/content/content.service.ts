@@ -172,6 +172,39 @@ const getSeriesDetailsFromDB = async (id: string) => {
     seasons: seasons,
   };
 };
+
+const getContentDetailsPublicFromDB = async (id: string) => {
+  const content = await Content.findById(id);
+  if (!content || content.status !== 'PUBLISHED') {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Content not found');
+  }
+
+  let result = content.toObject();
+
+  if (content.type === 'SERIES') {
+    const totalEpisodes = await Episode.countDocuments({ seriesId: id, status: 'PUBLISHED' });
+    const seasonsRaw = await Season.find({ seriesId: id }).sort('seasonNumber');
+    
+    const seasons = await Promise.all(
+      seasonsRaw.map(async (season) => {
+        const episodes = await Episode.find({ seasonId: season._id, status: 'PUBLISHED' }).sort('episodeNumber');
+        return {
+          ...season.toObject(),
+          episodeCount: episodes.length,
+          episodes: episodes
+        };
+      })
+    );
+
+    result = {
+      ...result,
+      totalEpisodes,
+      seasons
+    };
+  }
+
+  return result;
+};
 const getEpisodesFromDB = async (seriesId: string, query: Record<string, unknown>) => {
   const filter: any = { seriesId: new Types.ObjectId(seriesId) };
 
@@ -570,5 +603,6 @@ export const ContentService = {
   createSeasonToDB: createSeasonToDB,
   getSeasonsBySeriesFromDB: getSeasonsBySeriesFromDB,
   updateSeasonInDB: updateSeasonInDB,
-  deleteSeasonFromDB: deleteSeasonFromDB
+  deleteSeasonFromDB: deleteSeasonFromDB,
+  getContentDetailsPublicFromDB: getContentDetailsPublicFromDB
 };

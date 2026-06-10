@@ -106,6 +106,11 @@ const userSchema = new Schema<IUser>(
       default: [],
       select: false,
     },
+    gender: {
+      type: String,
+      enum: ['MALE', 'FEMALE', 'OTHER'],
+      required: false,
+    },
     dateOfBirth: {
       type: Date,
       required: false,

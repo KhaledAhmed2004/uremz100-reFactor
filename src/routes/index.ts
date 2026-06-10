@@ -39,7 +39,7 @@ const apiRoutes = [
     route: AdminRoutes,
   },
   {
-    path: '/legal',
+    path: '/legals',
     route: LegalRoutes,
   },
   {

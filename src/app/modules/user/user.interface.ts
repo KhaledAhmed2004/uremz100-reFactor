@@ -44,6 +44,7 @@ export interface IUser {
   email: string;
   password?: string;
   role: USER_ROLES;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
   dateOfBirth?: Date;
   profileImage?: string;
   aboutMe?: string;

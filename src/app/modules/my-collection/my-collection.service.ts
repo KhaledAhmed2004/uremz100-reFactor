@@ -87,6 +87,28 @@ const removeFromCollectionFromDB = async (payload: { userId?: string, guestId?: 
   return result;
 };
 
+const removeFromCollectionBulkFromDB = async (payload: { userId?: string, guestId?: string, itemIds: string[] }) => {
+  const { userId, guestId, itemIds } = payload;
+  
+  if (!userId && !guestId) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'User ID or Guest ID is required');
+  }
+
+  const query = userId 
+    ? { 
+        userId: new Types.ObjectId(userId),
+        $or: [{ _id: { $in: itemIds } }, { itemId: { $in: itemIds } }]
+      } 
+    : { 
+        guestId,
+        $or: [{ _id: { $in: itemIds } }, { itemId: { $in: itemIds } }]
+      };
+
+  const result = await MyCollection.deleteMany(query);
+
+  return result.deletedCount;
+};
+
 const getMyCollectionFromDB = async (userId: string | undefined, guestId: string | undefined, query: Record<string, unknown>) => {
   if (!userId && !guestId) return { pagination: null, data: [] };
 
@@ -115,5 +137,6 @@ const getMyCollectionFromDB = async (userId: string | undefined, guestId: string
 export const MyCollectionService = {
   addToCollectionInDB,
   removeFromCollectionFromDB,
+  removeFromCollectionBulkFromDB,
   getMyCollectionFromDB,
 };
