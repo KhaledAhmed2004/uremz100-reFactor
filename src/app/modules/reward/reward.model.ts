@@ -52,8 +52,23 @@ export const Transaction = model<ITransaction, TransactionModel>('Transaction', 
 const userRewardProgressSchema = new Schema<IUserRewardProgress, UserRewardProgressModel>(
   {
     user: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
-    dailyStreak: { type: Number, default: 0 },
-    lastCheckInDate: { type: Date },
+    checkInStreak: {
+      currentDay: { type: Number, default: 1 },
+      lastClaimDate: { type: Date },
+      totalStreaksCompleted: { type: Number, default: 0 },
+      isStreakActive: { type: Boolean, default: true },
+    },
+    checkInRewards: {
+      type: Map,
+      of: new Schema(
+        {
+          claimed: { type: Boolean, default: false },
+          claimedAt: { type: Date },
+        },
+        { _id: false }
+      ),
+      default: {},
+    },
     adsWatchedToday: { type: Number, default: 0 },
     lastAdWatchDate: { type: Date },
     watchTimeMilestonesClaimed: { type: [Number], default: [] },

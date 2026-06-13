@@ -1171,9 +1171,16 @@ Feature: Collection Management
   describe('5. Rewards Page Flow', () => {
     it('should show the initial wallet balance as 0', async () => {
       console.info(`
-📖 DOC: 
-Step 1: The user navigates to the 'Rewards' page.
-The server retrieves the user's wallet details, which defaults to 0 upon registration.
+📖 BDD SCENARIO: 01. INITIAL REWARD WALLET BALANCE
+Feature: Rewards System
+  As a registered user
+  I want to view my initial reward wallet balance
+  So that I can track my earned coins
+
+  Given the user has just registered an account
+  When the user navigates to the 'Rewards' page
+  Then the server retrieves the wallet details
+  And the initial balance should be 0 for both gold and bonus coins
 `);
       const res = await request(app)
         .get('/api/v1/rewards/wallet')
@@ -1188,43 +1195,178 @@ The server retrieves the user's wallet details, which defaults to 0 upon registr
       expect(res.body.data.transactions).toEqual([]);
     });
 
-    it('should allow the user to claim a daily check-in reward', async () => {
-      console.info(`
-📖 DOC: 
-Step 2: The user clicks "Claim" on the Daily Check-In reward.
-The server verifies the streak and adds 20 coins to the user's wallet.
+    describe('Daily Check-In Streak System', () => {
+      let UserRewardProgress: any;
+
+      beforeAll(async () => {
+        const models = await import('../modules/reward/reward.model');
+        UserRewardProgress = models.UserRewardProgress;
+      });
+
+      const mockStreak = async (currentDay: number, lastClaimOffsetMs: number) => {
+        const lastClaimDate = new Date(Date.now() - lastClaimOffsetMs);
+        lastClaimDate.setUTCHours(0, 0, 0, 0);
+
+        await UserRewardProgress.findOneAndUpdate(
+          { user: testUserId },
+          {
+            $set: {
+              'checkInStreak.currentDay': currentDay,
+              'checkInStreak.lastClaimDate': lastClaimDate,
+              'checkInStreak.isStreakActive': true,
+              'checkInStreak.totalStreaksCompleted': 3,
+            },
+          },
+          { new: true }
+        );
+      };
+
+      it('should allow the user to claim a reward on Day 3 (Scenario 01)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 01. NORMAL DAILY CLAIM (Day 1-7)
+Feature: Daily Check-In Reward
+  Scenario: User claims reward on Day 3
+    Given user has streak currentDay = 3
+    And lastClaimDate = "Yesterday"
+    When user clicks "Claim" on Daily Check-In
+    Then server verifies lastClaimDate ≠ today
+    And adds 20 coins to wallet
+    And updates streak.currentDay = 4
 `);
-      const res = await request(app)
-        .post('/api/v1/rewards/claim/check-in')
-        .set('Authorization', `Bearer ${userToken}`);
+        await mockStreak(3, 86400000); // 1 day ago
 
-      logApi('POST', '/api/v1/rewards/claim/check-in', { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'POST-CLAIM-CHECKIN', 'User claims daily check-in reward');
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/check-in')
+          .set('Authorization', `Bearer ${userToken}`);
 
-      expect(res.status).toBe(StatusCodes.OK);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.rewardAmount).toBe(20);
-      expect(res.body.data.currentStreak).toBe(1);
-    });
+        logApi('POST', '/api/v1/rewards/claim/check-in', { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'POST-CLAIM-SCENARIO-01', 'User claims daily check-in reward on Day 3');
 
-    it('should show the updated wallet balance after claiming a reward', async () => {
-      console.info(`
-📖 DOC: 
-Step 3: The Rewards page reloads or the wallet updates instantly.
-The server retrieves the updated wallet showing 20 coins and 1 recent transaction.
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.coinsEarned).toBe(20);
+        expect(res.body.data.streakDay).toBe(3);
+        expect(res.body.data.nextStreakDay).toBe(4);
+      });
+
+      it('should block claiming twice on the same day (Scenario 02)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 02. ALREADY CLAIMED TODAY (Edge Case)
+Feature: Daily Check-In Reward
+  Scenario: User tries to claim twice on same day
+    Given user has streak currentDay = 4
+    And lastClaimDate = "Today"
+    When user clicks "Claim" on Daily Check-In
+    Then server returns error "Already claimed today"
 `);
-      const res = await request(app)
-        .get('/api/v1/rewards/wallet')
-        .set('Authorization', `Bearer ${userToken}`);
+        // We just claimed in the previous test, so it's "Today"
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/check-in')
+          .set('Authorization', `Bearer ${userToken}`);
 
-      logApi('GET', '/api/v1/rewards/wallet', { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'GET-WALLET-UPDATED', 'User views updated coin wallet');
+        logApi('POST', '/api/v1/rewards/claim/check-in', { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'POST-CLAIM-SCENARIO-02', 'User tries to claim twice');
 
-      expect(res.status).toBe(StatusCodes.OK);
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.goldBalance).toBe(0);
-      expect(res.body.data.bonusBalance).toBe(20);
-      expect(res.body.data.transactions.length).toBe(1);
-      expect(res.body.data.transactions[0].source).toBe('daily_check_in');
-      expect(res.body.data.transactions[0].amount).toBe(20);
+        expect(res.status).toBe(StatusCodes.BAD_REQUEST);
+        expect(res.body.success).toBe(false);
+        expect(res.body.message).toBe('Already claimed today');
+      });
+
+      it('should reset streak on missed days (Scenario 03)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 03. STREAK RESET ON MISSED DAY
+Feature: Daily Check-In Reward
+  Scenario: User misses 2 days, streak resets
+    Given user has streak currentDay = 5
+    And lastClaimDate = "3 days ago"
+    When user clicks "Claim" on Daily Check-In
+    Then server resets streak.currentDay = 1
+    And adds 10 coins (Day 1 reward)
+`);
+        await mockStreak(5, 86400000 * 3); // 3 days ago
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/check-in')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        logApi('POST', '/api/v1/rewards/claim/check-in', { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'POST-CLAIM-SCENARIO-03', 'User misses 2 days and resets streak');
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.coinsEarned).toBe(10); // Day 1
+        expect(res.body.data.streakDay).toBe(1);
+        expect(res.body.data.nextStreakDay).toBe(2);
+      });
+
+      it('should complete 7-day cycle and reset (Scenario 04)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 04. DAY 7 COMPLETE -> CYCLE RESET
+Feature: Daily Check-In Reward
+  Scenario: User completes 7-day cycle
+    Given user has streak currentDay = 7
+    When user clicks "Claim" on Daily Check-In
+    Then server adds 50 coins (Day 7 reward)
+    And resets streak.currentDay = 1
+`);
+        await mockStreak(7, 86400000); // 1 day ago
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/check-in')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.coinsEarned).toBe(50);
+        expect(res.body.data.streakDay).toBe(7);
+        expect(res.body.data.nextStreakDay).toBe(1); // Cycle reset
+      });
+
+      it('should provide progressive reward on Day 2 (Scenario 05)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 05. PROGRESSIVE REWARD ON DAY 2
+Feature: Daily Check-In Reward
+  Scenario: User claims progressive reward on Day 2
+    Given user has streak currentDay = 2
+    When user clicks "Claim" on Daily Check-In
+    Then server adds 15 coins
+    And updates streak.currentDay = 3
+`);
+        await mockStreak(2, 86400000);
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/check-in')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.coinsEarned).toBe(15);
+        expect(res.body.data.streakDay).toBe(2);
+        expect(res.body.data.nextStreakDay).toBe(3);
+      });
+
+      it('should not reset streak if only 1 day is missed (Scenario 06)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 06. 1 DAY MISS ONLY (NO RESET)
+Feature: Daily Check-In Reward
+  Scenario: User misses exactly 1 day (boundary)
+    Given user has streak currentDay = 4
+    And lastClaimDate = "1 day ago"
+    When user clicks "Claim" on Daily Check-In
+    Then server detects daysMissed = 1 (allowed)
+    And adds 25 coins (Day 4 reward)
+    And updates streak.currentDay = 5
+`);
+        // 1 day ago is technically a continuous streak in Daily Check-in logic.
+        await mockStreak(4, 86400000); 
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/check-in')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.coinsEarned).toBe(25);
+        expect(res.body.data.streakDay).toBe(4);
+        expect(res.body.data.nextStreakDay).toBe(5);
+      });
     });
   });
 

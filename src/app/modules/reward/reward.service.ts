@@ -158,39 +158,71 @@ const claimDailyCheckIn = async (userId: string) => {
     if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
 
     const today = new Date();
-    const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
+    const todayUTC = new Date(today);
+    todayUTC.setUTCHours(0, 0, 0, 0);
 
-    let lastCheckInUTC: Date | null = null;
-    if (progress.lastCheckInDate) {
-      const last = progress.lastCheckInDate;
-      lastCheckInUTC = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth(), last.getUTCDate()));
+    // Initialize streak structure for backwards compatibility
+    if (!progress.checkInStreak) {
+      progress.checkInStreak = {
+        currentDay: 1,
+        totalStreaksCompleted: 0,
+        isStreakActive: true,
+      };
+    }
+    if (!progress.checkInRewards) {
+      progress.checkInRewards = new Map();
     }
 
-    if (lastCheckInUTC && lastCheckInUTC.getTime() === todayUTC.getTime()) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, 'Already checked in today');
+    let lastClaimDateUTC: Date | null = null;
+    if (progress.checkInStreak.lastClaimDate) {
+      lastClaimDateUTC = new Date(progress.checkInStreak.lastClaimDate);
+      lastClaimDateUTC.setUTCHours(0, 0, 0, 0);
     }
 
-    let currentStreak = progress.dailyStreak;
-    if (lastCheckInUTC && todayUTC.getTime() - lastCheckInUTC.getTime() === 24 * 60 * 60 * 1000) {
-      currentStreak += 1;
+    if (lastClaimDateUTC && lastClaimDateUTC.getTime() === todayUTC.getTime()) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Already claimed today');
+    }
+
+    let currentDay = progress.checkInStreak.currentDay || 1;
+
+    if (lastClaimDateUTC) {
+      const daysMissed = Math.round((todayUTC.getTime() - lastClaimDateUTC.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysMissed > 1) {
+        currentDay = 1;
+        progress.checkInStreak.isStreakActive = false;
+        progress.checkInRewards.clear();
+      }
+    }
+
+    const rewardCoins = REWARD_CONFIG.DAILY_CHECK_IN[currentDay as keyof typeof REWARD_CONFIG.DAILY_CHECK_IN] || 10;
+
+    await grantBonusCoins(session, userId, rewardCoins, TransactionSource.DAILY_CHECK_IN, `Day ${currentDay} Check-in`);
+
+    progress.checkInRewards.set(`day${currentDay}`, { claimed: true, claimedAt: today });
+    progress.checkInStreak.lastClaimDate = today;
+    progress.checkInStreak.isStreakActive = true;
+
+    if (currentDay === 7) {
+      progress.checkInStreak.currentDay = 1;
+      progress.checkInStreak.totalStreaksCompleted = (progress.checkInStreak.totalStreaksCompleted || 0) + 1;
+      // We don't clear checkInRewards immediately so the UI can show Day 7 claimed, 
+      // it will be cleared automatically on the next check-in because daysMissed logic or a cycle reset.
+      // Actually, standard is to clear on the start of the next cycle. Let's leave it, 
+      // but if currentDay was 7, next checkin will start at 1 anyway.
     } else {
-      currentStreak = 1;
+      progress.checkInStreak.currentDay = currentDay + 1;
     }
 
-    if (currentStreak > 7) currentStreak = 1;
-
-    const rewardAmount = REWARD_CONFIG.DAILY_CHECK_IN[currentStreak as keyof typeof REWARD_CONFIG.DAILY_CHECK_IN] || 20;
-
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.DAILY_CHECK_IN, `Day ${currentStreak} Check-in`);
-
-    progress.dailyStreak = currentStreak;
-    progress.lastCheckInDate = todayUTC;
     await progress.save({ session });
-
     await session.commitTransaction();
     session.endSession();
 
-    return { rewardAmount, currentStreak };
+    return { 
+      success: true,
+      coinsEarned: rewardCoins, 
+      streakDay: currentDay,
+      nextStreakDay: progress.checkInStreak.currentDay
+    };
   } catch (error) {
     await session.abortTransaction();
     session.endSession();

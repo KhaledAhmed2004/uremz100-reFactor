@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "ai:debug": "ts-node scripts/ai-debug.ts",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "lint:check": "eslint --ignore-path .eslintignore --ext .js,.ts",

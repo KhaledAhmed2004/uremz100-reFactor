@@ -36,7 +36,7 @@ import guestOrAuth from '../../middlewares/guestOrAuth';
 
 router.get(
   '/:contentId/details',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
+  guestOrAuth,
   ContentController.getContentDetailsPublic,
 );
 

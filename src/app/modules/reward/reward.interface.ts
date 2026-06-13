@@ -53,8 +53,19 @@ export type TransactionModel = Model<ITransaction, Record<string, unknown>>;
 
 export interface IUserRewardProgress {
   user: Types.ObjectId;
-  dailyStreak: number;
-  lastCheckInDate?: Date;
+  checkInStreak: {
+    currentDay: number;
+    lastClaimDate?: Date;
+    totalStreaksCompleted: number;
+    isStreakActive: boolean;
+  };
+  checkInRewards: Record<
+    string,
+    {
+      claimed: boolean;
+      claimedAt?: Date;
+    }
+  >;
   adsWatchedToday: number;
   lastAdWatchDate?: Date;
   watchTimeMilestonesClaimed: number[];
