@@ -60,7 +60,7 @@ const trackProgressInDB = async (
       new: true,
       setDefaultsOnInsert: true,
     },
-  );
+  ).select('-userId -guestId');
 
   // Calculate incremental watch time in seconds
   let watchDurationDelta = watchedSeconds;
@@ -88,7 +88,7 @@ const getRecentlyWatchedFromDB = async (userId?: string, guestId?: string) => {
 
   const query = userId ? { userId: new Types.ObjectId(userId) } : { guestId };
 
-  const cardFields = 'title poster type isPremium releaseDate rating publishedAt createdAt';
+  const cardFields = 'title posterUrl type isPremium releaseDate rating publishedAt createdAt';
 
   const result = await RecentlyWatched.find(query)
     .populate('contentId', cardFields)

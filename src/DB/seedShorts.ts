@@ -45,7 +45,7 @@ export const seedShorts = async () => {
         planStatus: ['FREE'], // Ensuring all of them are proper free videos
         genres: [genre._id],
         videoUrl: shortVideos[videoId],
-        poster: `https://picsum.photos/seed/viral${i}/400/600`, // Vertical poster dimension
+        posterUrl: `https://picsum.photos/seed/viral${i}/400/600`, // Vertical poster dimension
         duration: 1, // in minutes (required)
         releaseYear: 2024,
         publishedAt: new Date(Date.now() - i * 100000), // Staggered to test infinite scroll sorting
@@ -68,7 +68,5 @@ export const seedShorts = async () => {
   }
 };
 
-// Execute if run directly
-if (require.main === module) {
-  seedShorts().then(() => process.exit(0));
-}
+// Execute
+seedShorts().then(() => process.exit(0));

@@ -32,10 +32,24 @@ router.get(
   ContentController.getComingSoonContent,
 );
 
+import guestOrAuth from '../../middlewares/guestOrAuth';
+
 router.get(
   '/:contentId/details',
   auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   ContentController.getContentDetailsPublic,
+);
+
+router.get(
+  '/:contentId/playback-url',
+  guestOrAuth,
+  ContentController.getPlaybackUrl,
+);
+
+router.get(
+  '/episodes/:episodeId/playback-url',
+  guestOrAuth,
+  ContentController.getEpisodePlaybackUrl,
 );
 
 // Movies Management

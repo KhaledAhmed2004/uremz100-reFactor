@@ -3,7 +3,7 @@ import { Content } from '../content/content.model';
 import { redisClient } from '../../../shared/redisClient';
 import { logger } from '../../../shared/logger';
 
-const cardFields = 'title thumbnail poster type rating isPremium releaseDate publishedAt createdAt';
+const cardFields = 'title thumbnailUrl posterUrl type rating isPremium releaseDate publishedAt createdAt';
 
 // Helper to fetch data with Redis Cache
 const fetchWithCache = async (key: string, fetcher: () => Promise<any>, ttlSeconds: number = 3600) => {
@@ -123,7 +123,8 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
         fetchWithCache('home:vip_weekly_v2', async () => {
           const data = await Content.find({ isPremium: true }).sort({ views: -1 }).select(cardFields).limit(10);
           return { id: 'row_vip_weekly', type: 'VIP', title: "Weekly VIP Picks", items: data };
-        })
+        }),
+        getComingSoon()
       ];
     } else {
       // Default to daily
@@ -131,7 +132,8 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
         fetchWithCache('home:vip_daily_v2', async () => {
           const data = await Content.find({ isPremium: true }).sort({ rating: -1 }).select(cardFields).limit(10);
           return { id: 'row_vip_daily', type: 'VIP', title: "Today's VIP Picks", items: data };
-        })
+        }),
+        getComingSoon()
       ];
     }
   } else if (tab === 'ranking') {
@@ -139,8 +141,14 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
     queries = [
       fetchWithCache(`home:ranking:${filter}`, async () => {
         let sortConfig: any = { views: -1 };
-        if (filter === 'daily') sortConfig = { createdAt: -1, views: -1 };
-        // Ideally filter applies to a specific time range in DB
+        if (filter === 'daily') {
+          sortConfig = { dailyViews: -1, views: -1 };
+        } else if (filter === 'weekly') {
+          sortConfig = { weeklyViews: -1, views: -1 };
+        } else if (filter === 'monthly') {
+          // We can use total views for monthly or add a monthlyViews field later
+          sortConfig = { views: -1 };
+        }
         const data = await Content.find().sort(sortConfig).select(cardFields).limit(10);
         const title = filter === 'popular' ? 'Popular Rankings' : `${filter.charAt(0).toUpperCase() + filter.slice(1)} Rankings`;
         return { id: `row_ranking_${filter}`, type: 'RANKING', title, items: data };

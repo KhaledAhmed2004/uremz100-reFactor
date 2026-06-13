@@ -6,13 +6,11 @@ import { logger } from '../shared/logger';
 
 // List of reliable horizontal (16:9) real free videos for Movies
 const movieVideos = [
-  'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-  'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-  'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-  'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
-  'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4',
-  'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
-  'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4'
+  'https://res.cloudinary.com/demo/video/upload/dog.mp4',
+  'https://res.cloudinary.com/demo/video/upload/elephants.mp4',
+  'https://res.cloudinary.com/demo/video/upload/sea_turtle.mp4',
+  'http://vjs.zencdn.net/v/oceans.mp4',
+  'https://media.w3.org/2010/05/sintel/trailer.mp4'
 ];
 
 export const seedMovies = async () => {
@@ -58,7 +56,7 @@ export const seedMovies = async () => {
 
       // If premium, it might have a trailer. Let's use a short video as a trailer.
       const trailerUrl = isPremium 
-        ? 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4' 
+        ? 'https://res.cloudinary.com/demo/video/upload/kitten-playing.mp4' 
         : undefined;
 
       moviesData.push({
@@ -71,7 +69,7 @@ export const seedMovies = async () => {
         videoUrl: movieVideos[videoId],
         trailerUrl: trailerUrl,
         // Horizontal poster dimensions typical for movies
-        poster: `https://picsum.photos/seed/movie${i}/1920/1080`,
+        posterUrl: `https://picsum.photos/seed/movie${i}/1920/1080`,
         duration: Math.floor(Math.random() * 60) + 90, // Duration between 90 and 150 minutes
         releaseYear: 2020 + Math.floor(Math.random() * 5), // 2020 to 2024
         publishedAt: new Date(Date.now() - i * 86400000), // Staggered over the last 15 days
@@ -99,7 +97,5 @@ export const seedMovies = async () => {
   }
 };
 
-// Execute if run directly
-if (require.main === module) {
-  seedMovies().then(() => process.exit(0));
-}
+// Execute
+seedMovies().then(() => process.exit(0));

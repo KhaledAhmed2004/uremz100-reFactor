@@ -259,6 +259,8 @@ The system cascades the deletion and fully removes the user from the database.
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
     });
+  });
+
   describe('4. Content Management Flow', () => {
     it('should manually boost a content to the Popular tab', async () => {
       console.info(`

@@ -82,7 +82,7 @@ describe('Content E2E Tests', () => {
         releaseYear: 2010,
         duration: 148,
         videoUrl: 'http://video.com',
-        poster: 'http://poster.jpg'
+        posterUrl: 'http://poster.jpg'
       });
       await Content.create({
         title: 'Interstellar',
@@ -340,7 +340,7 @@ describe('Content E2E Tests', () => {
       const payload = {
         title: 'Season 1',
         seasonNumber: 1,
-        poster: 'http://poster.jpg'
+        posterUrl: 'http://poster.jpg'
       };
 
       const response = await request(app)
@@ -358,7 +358,7 @@ describe('Content E2E Tests', () => {
     it('successfully fetches seasons (GET /api/v1/contents/series/:seriesId/seasons)', async () => {
       const { token } = await createAuthUser(USER_ROLES.SUPER_ADMIN);
       const series = await Content.create({ title: 'Series', description: 'desc', duration: 0, releaseYear: 2024, type: 'SERIES' });
-      await Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, poster: 'url' });
+      await Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, posterUrl: 'url' });
 
       const response = await request(app)
         .get(`/api/v1/contents/series/${series._id}/seasons`)
@@ -377,13 +377,13 @@ describe('Content E2E Tests', () => {
     it('successfully creates an episode (POST /api/v1/contents/series/:seriesId/episodes)', async () => {
       const { token } = await createAuthUser(USER_ROLES.SUPER_ADMIN);
       const series = await Content.create({ title: 'Series', description: 'desc', duration: 0, releaseYear: 2024, type: 'SERIES' });
-      const season = await Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, poster: 'url' });
+      const season = await Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, posterUrl: 'url' });
 
       const payload = {
         title: 'Episode 1',
         description: 'First episode',
         videoUrl: 'http://video.com',
-        thumbnail: 'http://thumb.jpg',
+        thumbnailUrl: 'http://thumb.jpg',
         duration: 45,
         releaseDate: new Date(),
         seasonId: season._id.toString(),
@@ -407,12 +407,12 @@ describe('Content E2E Tests', () => {
     it('successfully fetches episodes (GET /api/v1/contents/series/:seriesId/episodes)', async () => {
       const { token } = await createAuthUser(USER_ROLES.SUPER_ADMIN);
       const series = await Content.create({ title: 'Series', description: 'desc', duration: 0, releaseYear: 2024, type: 'SERIES' });
-      const season = await Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, poster: 'url' });
+      const season = await Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, posterUrl: 'url' });
       await Episode.create({
         title: 'Episode 1',
         description: 'desc',
         videoUrl: 'url',
-        thumbnail: 'url',
+        thumbnailUrl: 'url',
         duration: 45,
         releaseDate: new Date(),
         seriesId: series._id,

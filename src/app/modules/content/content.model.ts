@@ -6,7 +6,7 @@ export interface IContent {
   title: string;
   description: string;
   genres: Types.ObjectId[];
-  poster?: string;
+  posterUrl?: string;
   videoUrl: string;
   trailerUrl?: string;
   duration: number; // in minutes
@@ -43,7 +43,7 @@ const contentSchema = new Schema<IContent>(
       required: true,
       default: [],
     },
-    poster: { type: String },
+    posterUrl: { type: String },
     videoUrl: {
       type: String,
       required: function (this: any) {

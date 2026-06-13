@@ -106,6 +106,31 @@ const getContentDetailsPublic = catchAsync(async (req: Request, res: Response) =
     data: result,
   });
 });
+
+const getPlaybackUrl = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload | undefined;
+  const guestId = req.guestId;
+  const result = await ContentService.generatePlaybackUrl(req.params.contentId, user?.id, guestId);
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Playback URL generated successfully',
+    data: result,
+  });
+});
+
+const getEpisodePlaybackUrl = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload | undefined;
+  const guestId = req.guestId;
+  const result = await ContentService.generateEpisodePlaybackUrl(req.params.episodeId, user?.id, guestId);
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Episode playback URL generated successfully',
+    data: result,
+  });
+});
+
 const createSeason = catchAsync(async (req: Request, res: Response) => {
   const { seriesId } = req.params;
   const payload = { ...req.body };
@@ -113,7 +138,7 @@ const createSeason = catchAsync(async (req: Request, res: Response) => {
   if (req.files) {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     if (files['posterFile']) {
-      payload.poster = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
+      payload.posterUrl = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
     }
   }
 
@@ -142,7 +167,7 @@ const updateSeason = catchAsync(async (req: Request, res: Response) => {
   if (req.files) {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     if (files['posterFile']) {
-      payload.poster = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
+      payload.posterUrl = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
     }
   }
 
@@ -186,7 +211,7 @@ const createEpisode = catchAsync(async (req: Request, res: Response) => {
       payload.videoUrl =
         (files['videoFile'][0] as any).location || files['videoFile'][0].path;
     if (files['thumbnailFile'])
-      payload.thumbnail =
+      payload.thumbnailUrl =
         (files['thumbnailFile'][0] as any).location ||
         files['thumbnailFile'][0].path;
   }
@@ -211,7 +236,7 @@ const updateEpisode = catchAsync(async (req: Request, res: Response) => {
       payload.videoUrl =
         (files['videoFile'][0] as any).location || files['videoFile'][0].path;
     if (files['thumbnailFile'])
-      payload.thumbnail =
+      payload.thumbnailUrl =
         (files['thumbnailFile'][0] as any).location ||
         files['thumbnailFile'][0].path;
   }
@@ -244,8 +269,8 @@ const createMovie = catchAsync(async (req: Request, res: Response) => {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     if (files['videoFile']) payload.videoUrl = (files['videoFile'][0] as any).location || files['videoFile'][0].path;
     if (files['trailerFile']) payload.trailerUrl = (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
-    if (files['posterFile']) payload.poster = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
-    if (files['thumbnailFile']) payload.thumbnail = (files['thumbnailFile'][0] as any).location || files['thumbnailFile'][0].path;
+    if (files['posterFile']) payload.posterUrl = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
+    if (files['thumbnailFile']) payload.thumbnailUrl = (files['thumbnailFile'][0] as any).location || files['thumbnailFile'][0].path;
   }
 
   const result = await ContentService.createMovieToDB(payload);
@@ -266,10 +291,10 @@ const createSeries = catchAsync(async (req: Request, res: Response) => {
       payload.trailerUrl =
         (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
     if (files['posterFile'])
-      payload.poster =
+      payload.posterUrl =
         (files['posterFile'][0] as any).location || files['posterFile'][0].path;
     if (files['thumbnailFile'])
-      payload.thumbnail =
+      payload.thumbnailUrl =
         (files['thumbnailFile'][0] as any).location ||
         files['thumbnailFile'][0].path;
   }
@@ -292,10 +317,10 @@ const updateSeries = catchAsync(async (req: Request, res: Response) => {
       payload.trailerUrl =
         (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
     if (files['posterFile'])
-      payload.poster =
+      payload.posterUrl =
         (files['posterFile'][0] as any).location || files['posterFile'][0].path;
     if (files['thumbnailFile'])
-      payload.thumbnail =
+      payload.thumbnailUrl =
         (files['thumbnailFile'][0] as any).location ||
         files['thumbnailFile'][0].path;
   }
@@ -341,8 +366,8 @@ const updateMovie = catchAsync(async (req: Request, res: Response) => {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     if (files['videoFile']) payload.videoUrl = (files['videoFile'][0] as any).location || files['videoFile'][0].path;
     if (files['trailerFile']) payload.trailerUrl = (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
-    if (files['posterFile']) payload.poster = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
-    if (files['thumbnailFile']) payload.thumbnail = (files['thumbnailFile'][0] as any).location || files['thumbnailFile'][0].path;
+    if (files['posterFile']) payload.posterUrl = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
+    if (files['thumbnailFile']) payload.thumbnailUrl = (files['thumbnailFile'][0] as any).location || files['thumbnailFile'][0].path;
   }
 
   const result = await ContentService.updateMovieInDB(movieId, payload);
@@ -433,5 +458,7 @@ export const ContentController = {
   initiateUpload: initiateUpload,
   getPresignedUrls: getPresignedUrls,
   completeUpload: completeUpload,
-  getContentDetailsPublic: getContentDetailsPublic
+  getContentDetailsPublic: getContentDetailsPublic,
+  getPlaybackUrl: getPlaybackUrl,
+  getEpisodePlaybackUrl: getEpisodePlaybackUrl
 };

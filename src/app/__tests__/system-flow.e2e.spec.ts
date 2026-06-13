@@ -61,7 +61,7 @@ beforeAll(async () => {
     status: 'PUBLISHED',
     planStatus: ['FREE'],
     videoUrl: 'http://video.com/batman.mp4',
-    poster: 'http://image.com/batman.jpg',
+    posterUrl: 'http://image.com/batman.jpg',
     duration: 120,
     releaseYear: 2008,
     publishedAt: new Date(),
@@ -79,7 +79,7 @@ beforeAll(async () => {
     planStatus: ['MONTHLY'],
     trailerUrl: 'http://trailer.com/superman.mp4',
     videoUrl: 'http://video.com/superman.mp4',
-    poster: 'http://image.com/superman.jpg',
+    posterUrl: 'http://image.com/superman.jpg',
     duration: 120,
     releaseYear: 2006,
     publishedAt: new Date(),
@@ -97,7 +97,7 @@ beforeAll(async () => {
       status: 'PUBLISHED',
       planStatus: ['FREE'],
       videoUrl: 'http://video.com/extra.mp4',
-      poster: 'http://image.com/extra.jpg',
+      posterUrl: 'http://image.com/extra.jpg',
       duration: 120,
       releaseYear: 2020,
       publishedAt: new Date(),
@@ -702,10 +702,12 @@ Feature: Content Discovery
         expect(newReleasesSection.items[0].isRecent).toBe(true);
       }
     });
+  });
 
-    it('should load the vip tab successfully with default daily filter', async () => {
+  describe('1.5. VIP Page Flow', () => {
+    it('should load the vip tab successfully and show coming soon', async () => {
       console.info(`
-📖 BDD SCENARIO: 04. VIP TAB (DEFAULT DAILY PICKS)
+📖 BDD SCENARIO: 04. VIP TAB (DEFAULT DAILY PICKS & COMING SOON)
 Feature: Premium Content Discovery
   As a subscribed user
   I want to explore premium content recommendations
@@ -714,7 +716,7 @@ Feature: Premium Content Discovery
   Given the user navigates to the 'VIP' tab on the home screen
   When the app requests the VIP feed without a specific filter
   Then the system defaults to "Today's VIP Picks"
-  And returns the premium content sections
+  And returns the premium content sections including "Coming Soon"
 `);
       const res = await request(app)
         .get('/api/v1/home/content?tab=vip')
@@ -727,9 +729,13 @@ Feature: Premium Content Discovery
       
       const dailyVipSection = res.body.data.sections.find((s: any) => s.id === 'row_vip_daily');
       expect(dailyVipSection).toBeDefined();
+
+      const comingSoonSection = res.body.data.sections.find((s: any) => s.id === 'row_coming_soon');
+      expect(comingSoonSection).toBeDefined();
+      expect(comingSoonSection.title).toBe('Coming Soon');
     });
 
-    it('should load the vip tab successfully with weekly filter', async () => {
+    it('should load the vip tab successfully with weekly filter and coming soon', async () => {
       console.info(`
 📖 BDD SCENARIO: 05. VIP TAB (WEEKLY FILTER)
 Feature: Premium Content Discovery
@@ -740,7 +746,7 @@ Feature: Premium Content Discovery
   Given the user is on the 'VIP' tab
   When they apply the "Weekly" filter
   Then the system filters the premium content based on weekly performance
-  And returns the 'Weekly VIP' section
+  And returns the 'Weekly VIP' section and "Coming Soon" section
 `);
       const res = await request(app)
         .get('/api/v1/home/content?tab=vip&filter=weekly')
@@ -753,7 +759,13 @@ Feature: Premium Content Discovery
       
       const weeklyVipSection = res.body.data.sections.find((s: any) => s.id === 'row_vip_weekly');
       expect(weeklyVipSection).toBeDefined();
+
+      const comingSoonSection = res.body.data.sections.find((s: any) => s.id === 'row_coming_soon');
+      expect(comingSoonSection).toBeDefined();
     });
+  });
+
+  describe('1.6. Ranking Tab Flow', () => {
 
     it('should load the ranking tab successfully', async () => {
       console.info(`
@@ -764,8 +776,8 @@ Feature: Content Discovery
   So that I know which content is the most successful globally
 
   Given the user navigates to the 'Ranking' tab
-  When the app requests the ranking feed with a filter (e.g., weekly)
-  Then the system compiles leaderboards based on total views and engagement
+  When the app requests the ranking feed with a filter (daily, weekly, monthly, or popular)
+  Then the system compiles leaderboards dynamically based on views in that timeframe
   And returns the sorted ranking lists
 `);
       const res = await request(app)
@@ -802,6 +814,32 @@ Feature: Content Discovery
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
       expect(res.body.data.title).toBeDefined();
+      expect(res.body.data.videoUrl).toBeUndefined(); // videoUrl should be hidden
+    });
+
+    it('should fetch the secure playback URL for the selected movie', async () => {
+      console.info(`
+📖 BDD SCENARIO: 07.1 FETCH SECURE PLAYBACK URL
+Feature: Content Playback Protection
+  As a user pressing the "Play" button
+  I want to securely get the video URL
+  So that I can start streaming the content
+
+  Given the user decides to play the selected movie
+  When the app requests the playback URL
+  Then the backend verifies plan status and JWT token
+  And generates a secure, expiring temporary Signed URL for playback
+`);
+      const res = await request(app)
+        .get(`/api/v1/contents/${theMovieId}/playback-url`)
+        .set('Authorization', `Bearer ${userToken}`);
+
+      logApi('GET', `/api/v1/contents/${theMovieId}/playback-url`, { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'GET-PLAYBACK-URL', 'User presses play and fetches secure signed video URL');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.url).toBeDefined();
+      expect(res.body.data.expiresAt).toBeDefined();
     });
 
     it('should fetch the specific watch progress for a selected movie (Option 3 Architecture)', async () => {

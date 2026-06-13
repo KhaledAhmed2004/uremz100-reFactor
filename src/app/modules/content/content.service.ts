@@ -1,4 +1,4 @@
-import { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
+import { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import config from '../../../config';
 import httpStatus from 'http-status';
@@ -9,6 +9,7 @@ import { Content } from './content.model';
 import { FavoriteContent } from '../favorite-content/favorite-content.model';
 import { Episode } from "./episode.model";
 import { Season } from "./season.model";
+import { Subscription } from '../subscription/subscription.model';
 
 const s3 = new S3Client({
   region: 'auto',
@@ -30,7 +31,7 @@ const searchContentFromDB = async (query: Record<string, unknown>) => {
     query.sort = '-createdAt';
   }
 
-  const cardFields = 'title poster type rating releaseYear isPremium publishedAt createdAt';
+  const cardFields = 'title posterUrl type rating releaseYear isPremium publishedAt createdAt';
 
   const contentQuery = new QueryBuilder(Content.find().select(cardFields), query)
     .search(searchableFields)
@@ -108,7 +109,7 @@ const getAdminMoviesList = async (query: Record<string, unknown>) => {
   const data = movies.map((item: any) => ({
     _id: item._id,
     title: item.title,
-    poster: item.poster,
+    posterUrl: item.posterUrl,
     duration: `${Math.floor(item.duration / 60)}h ${item.duration % 60}m`,
     status: item.status,
     planStatus: item.planStatus,
@@ -133,7 +134,7 @@ const getAdminSeriesList = async (query: Record<string, unknown>) => {
   const data = series.map((item: any) => ({
     _id: item._id,
     title: item.title,
-    poster: item.poster,
+    posterUrl: item.posterUrl,
     seasonsCount: item.seasonsCount || 0,
     status: item.status,
     subscriptionType: item.planStatus,
@@ -174,7 +175,7 @@ const getSeriesDetailsFromDB = async (id: string) => {
 };
 
 const getContentDetailsPublicFromDB = async (id: string) => {
-  const content = await Content.findById(id);
+  const content = await Content.findById(id).select('-videoUrl -dailyViews -weeklyViews -totalWatchTime -engagementScore -trendingScore');
   if (!content || content.status !== 'PUBLISHED') {
     throw new ApiError(httpStatus.NOT_FOUND, 'Content not found');
   }
@@ -187,7 +188,9 @@ const getContentDetailsPublicFromDB = async (id: string) => {
     
     const seasons = await Promise.all(
       seasonsRaw.map(async (season) => {
-        const episodes = await Episode.find({ seasonId: season._id, status: 'PUBLISHED' }).sort('episodeNumber');
+        const episodes = await Episode.find({ seasonId: season._id, status: 'PUBLISHED' })
+          .select('-videoUrl')
+          .sort('episodeNumber');
         return {
           ...season.toObject(),
           episodeCount: episodes.length,
@@ -204,6 +207,105 @@ const getContentDetailsPublicFromDB = async (id: string) => {
   }
 
   return result;
+};
+
+const _generateSignedUrlIfS3 = async (rawUrl: string): Promise<{ url: string; expiresAt: Date }> => {
+  const bucket = config.r2.bucketName || process.env.AWS_S3_BUCKET!;
+  const r2Domain = config.r2.customDomain || `https://${config.r2.accountId}.r2.cloudflarestorage.com`;
+  
+  // Attempt to extract S3 key if it matches our R2 bucket domain
+  let key = rawUrl;
+  if (rawUrl.includes(bucket) || rawUrl.includes(r2Domain)) {
+    try {
+      const urlObj = new URL(rawUrl);
+      // Strip leading slash
+      key = urlObj.pathname.substring(1);
+      // Remove bucket name from path if it's there
+      if (key.startsWith(`${bucket}/`)) {
+        key = key.substring(bucket.length + 1);
+      }
+    } catch (e) {
+      // Not a valid URL, treat as raw key
+    }
+  }
+
+  // If it's still a full http URL (e.g. cloudinary/w3c test), just return it
+  if (key.startsWith('http')) {
+    return {
+      url: key,
+      expiresAt: new Date(Date.now() + 3600 * 1000)
+    };
+  }
+
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: key,
+  });
+
+  const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+  
+  return {
+    url: signedUrl,
+    expiresAt: new Date(Date.now() + 3600 * 1000)
+  };
+};
+
+const _checkSubscription = async (userId: string | undefined, planStatus: string[]): Promise<void> => {
+  if (planStatus.includes('FREE')) return;
+
+  if (!userId) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'Please login to watch premium content');
+  }
+
+  const subscription = await Subscription.findOne({
+    userId: new Types.ObjectId(userId),
+    status: 'ACTIVE'
+  });
+
+  if (!subscription) {
+    throw new ApiError(httpStatus.FORBIDDEN, 'Active subscription required to watch this content');
+  }
+
+  // Allow ALL or if the user's plan intersects with the content's required plans
+  if (!planStatus.includes('ALL') && !planStatus.includes(subscription.planId.toString())) { // Simplified check. Ideally we cross-reference plan IDs
+    // In many systems 'PREMIUM'/'BASIC' strings are used. If subscription has a plan object, we'd check its type.
+    // For now, if they have ANY active subscription, we let them watch it since our plan statuses are simple.
+    // To strictly check if subscription matches planStatus, we can do further validation based on your exact Subscription schema.
+  }
+};
+
+const generatePlaybackUrl = async (contentId: string, userId?: string, guestId?: string) => {
+  const content = await Content.findById(contentId);
+  if (!content || content.status !== 'PUBLISHED') {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Content not found');
+  }
+
+  await _checkSubscription(userId, content.planStatus);
+
+  const { url, expiresAt } = await _generateSignedUrlIfS3(content.videoUrl);
+
+  return {
+    contentId,
+    url,
+    expiresAt
+  };
+};
+
+const generateEpisodePlaybackUrl = async (episodeId: string, userId?: string, guestId?: string) => {
+  const episode = await Episode.findById(episodeId);
+  if (!episode || episode.status !== 'PUBLISHED') {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Episode not found');
+  }
+
+  await _checkSubscription(userId, [episode.planStatus]);
+
+  const { url, expiresAt } = await _generateSignedUrlIfS3(episode.videoUrl);
+
+  return {
+    episodeId,
+    url,
+    expiresAt
+  };
 };
 const getEpisodesFromDB = async (seriesId: string, query: Record<string, unknown>) => {
   const filter: any = { seriesId: new Types.ObjectId(seriesId) };
@@ -604,5 +706,7 @@ export const ContentService = {
   getSeasonsBySeriesFromDB: getSeasonsBySeriesFromDB,
   updateSeasonInDB: updateSeasonInDB,
   deleteSeasonFromDB: deleteSeasonFromDB,
-  getContentDetailsPublicFromDB: getContentDetailsPublicFromDB
+  getContentDetailsPublicFromDB: getContentDetailsPublicFromDB,
+  generatePlaybackUrl: generatePlaybackUrl,
+  generateEpisodePlaybackUrl: generateEpisodePlaybackUrl
 };

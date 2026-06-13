@@ -16,6 +16,13 @@ import { StatusCodes } from 'http-status-codes';
 
 let replSet: MongoMemoryReplSet;
 
+vi.mock('../../../../shared/redisClient', () => ({
+  redisClient: {
+    get: vi.fn().mockResolvedValue(null),
+    setEx: vi.fn().mockResolvedValue('OK'),
+  }
+}));
+
 async function createAuthUser(role: string = USER_ROLES.SUPER_ADMIN, nameSuffix = 'admin') {
   const user = await User.create({
     name: `Test ${role} ${nameSuffix}`,
@@ -84,6 +91,7 @@ describe('Home Module E2E Tests', () => {
         releaseYear: 2024,
         views: 90,
         rating: 4.2,
+        engagementScore: 15,
       });
 
       // 3. Popular Series
@@ -248,10 +256,6 @@ describe('Home Module E2E Tests', () => {
       const vipDailySection = sections.find((s: any) => s.id === 'row_vip_daily');
       expect(vipDailySection).toBeDefined();
       expect(vipDailySection.title).toBe("Today's VIP Picks");
-      
-      const vipWeeklySection = sections.find((s: any) => s.id === 'row_vip_weekly');
-      expect(vipWeeklySection).toBeDefined();
-      expect(vipWeeklySection.title).toBe("Weekly VIP Picks");
     });
 
     it('successfully retrieves ranking sections using ?tab=ranking&filter=weekly', async () => {

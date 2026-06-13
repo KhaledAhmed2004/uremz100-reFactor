@@ -30,7 +30,7 @@ beforeAll(async () => {
     status: 'PUBLISHED',
     planStatus: ['FREE'],
     videoUrl: 'http://video.com/guest-movie.mp4',
-    poster: 'http://image.com/guest.jpg',
+    posterUrl: 'http://image.com/guest.jpg',
     duration: 120,
     releaseYear: 2024,
     views: 50,

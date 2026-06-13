@@ -3,7 +3,7 @@ import { Model, Schema, model, Types } from 'mongoose';
 export interface IEpisode {
   title: string;
   description: string;
-  thumbnail: string;
+  thumbnailUrl: string;
   videoUrl: string;
   duration: number; // in minutes
   releaseDate: Date;
@@ -21,7 +21,7 @@ const episodeSchema = new Schema<IEpisode>(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
-    thumbnail: { type: String, required: true },
+    thumbnailUrl: { type: String, required: true },
     videoUrl: { type: String, required: true },
     duration: { type: Number, required: true },
     releaseDate: { type: Date, required: true },

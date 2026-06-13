@@ -37,7 +37,7 @@ const getShortsFeed = async (cursor?: string, limit: number = 10) => {
       title: doc.title,
       description: doc.description,
       videoUrl: isTrailer ? doc.trailerUrl : doc.videoUrl,
-      poster: doc.poster,
+      posterUrl: doc.posterUrl,
       type: isTrailer ? 'TRAILER' : 'FREE_CONTENT',
     };
   });
