@@ -18,13 +18,13 @@ const getWalletDetails = catchAsync(async (req: Request, res: Response) => {
 
 const claimWatchTimeReward = catchAsync(async (req: Request, res: Response) => {
   const userId = req.user.id;
-  const { minutes } = req.body;
-  const result = await RewardService.claimWatchTimeReward(userId, minutes);
+  const { videoDuration } = req.body;
+  const result = await RewardService.claimWatchTimeReward(userId, videoDuration);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: `Watch time reward claimed successfully for ${minutes} minutes`,
+    message: `Watch time reward claimed successfully for ${videoDuration} minutes`,
     data: result,
   });
 });

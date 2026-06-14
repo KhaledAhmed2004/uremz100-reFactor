@@ -82,13 +82,21 @@ const grantBonusCoins = async (
   return wallet;
 };
 
-const claimWatchTimeReward = async (userId: string, minutes: number) => {
-  const allowedMilestones = Object.keys(REWARD_CONFIG.WATCH_TIME).map(Number);
-  if (!allowedMilestones.includes(minutes)) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, `Invalid milestone. Allowed milestones: ${allowedMilestones.join(', ')}`);
+const claimWatchTimeReward = async (userId: string, videoDuration: number) => {
+  if (videoDuration < 5) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'ভিডিও 5 মিনিট দেখতে হবে রিওয়ার্ড পেতে।');
   }
 
-  const rewardAmount = REWARD_CONFIG.WATCH_TIME[minutes as keyof typeof REWARD_CONFIG.WATCH_TIME];
+  let rewardAmount = 0;
+  if (videoDuration >= 5 && videoDuration < 10) rewardAmount = 10;
+  else if (videoDuration >= 10 && videoDuration < 20) rewardAmount = 15;
+  else if (videoDuration >= 20 && videoDuration < 30) rewardAmount = 20;
+  else if (videoDuration >= 30 && videoDuration < 40) rewardAmount = 25;
+  else if (videoDuration >= 40) rewardAmount = 30;
+
+  if (rewardAmount === 0) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'ভিডিও 5 মিনিট দেখতে হবে রিওয়ার্ড পেতে।');
+  }
 
   const session = await startSession();
   session.startTransaction();
@@ -96,13 +104,25 @@ const claimWatchTimeReward = async (userId: string, minutes: number) => {
     const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
     if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
 
-    if (progress.watchTimeMilestonesClaimed.includes(minutes)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, `Milestone ${minutes} minutes already claimed`);
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const lastClaimDate = progress.dailyWatchReward?.lastClaimDate;
+    if (lastClaimDate) {
+      const lastClaimed = new Date(lastClaimDate);
+      lastClaimed.setUTCHours(0, 0, 0, 0);
+
+      if (today.getTime() === lastClaimed.getTime()) {
+        throw new ApiError(StatusCodes.BAD_REQUEST, 'আপনি আজকে রিওয়ার্ড নিয়েছেন। পরের দিনে আবার চেষ্টা করুন।');
+      }
     }
 
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.WATCH_TIME, `Watched ${minutes} Minutes`);
+    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.WATCH_TIME, `Watched ${videoDuration} Minutes (Daily Reward)`);
 
-    progress.watchTimeMilestonesClaimed.push(minutes);
+    progress.dailyWatchReward = {
+      lastClaimDate: new Date(),
+      claimedDuration: videoDuration,
+    };
     await progress.save({ session });
 
     await session.commitTransaction();
@@ -302,7 +322,7 @@ const claimNotificationReward = async (userId: string) => {
   }
 };
 
-const claimSocialReward = async (userId: string, platform: 'facebook' | 'instagram') => {
+const claimSocialReward = async (userId: string, platform: 'facebook' | 'instagram' | 'youtube') => {
   const session = await startSession();
   session.startTransaction();
   try {
@@ -315,14 +335,29 @@ const claimSocialReward = async (userId: string, platform: 'facebook' | 'instagr
     if (platform === 'instagram' && progress.hasClaimedInstagramReward) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Instagram reward already claimed');
     }
+    if (platform === 'youtube' && progress.hasClaimedYoutubeReward) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'YouTube reward already claimed');
+    }
 
-    const rewardAmount = platform === 'facebook' ? REWARD_CONFIG.FOLLOW_FACEBOOK : REWARD_CONFIG.FOLLOW_INSTAGRAM;
-    const source = platform === 'facebook' ? TransactionSource.FOLLOW_FACEBOOK : TransactionSource.FOLLOW_INSTAGRAM;
+    let rewardAmount = 0;
+    let source: TransactionSource;
+
+    if (platform === 'facebook') {
+      rewardAmount = REWARD_CONFIG.FOLLOW_FACEBOOK;
+      source = TransactionSource.FOLLOW_FACEBOOK;
+    } else if (platform === 'instagram') {
+      rewardAmount = REWARD_CONFIG.FOLLOW_INSTAGRAM;
+      source = TransactionSource.FOLLOW_INSTAGRAM;
+    } else {
+      rewardAmount = REWARD_CONFIG.FOLLOW_YOUTUBE;
+      source = TransactionSource.FOLLOW_YOUTUBE;
+    }
 
     await grantBonusCoins(session, userId, rewardAmount, source, `Followed on ${platform}`);
 
     if (platform === 'facebook') progress.hasClaimedFacebookReward = true;
     if (platform === 'instagram') progress.hasClaimedInstagramReward = true;
+    if (platform === 'youtube') progress.hasClaimedYoutubeReward = true;
     await progress.save({ session });
 
     await session.commitTransaction();

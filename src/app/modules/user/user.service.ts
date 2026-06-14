@@ -191,14 +191,8 @@ const getUserMetricsFromDB = async () => {
   });
   
   aggregationBuilder.reset();
-  const pendingStats = await aggregationBuilder.calculateGrowth({ 
-    filter: { ...excludeAdminFilter, status: USER_STATUS.PENDING }, 
-    period: 'month' 
-  });
-  
-  aggregationBuilder.reset();
-  const suspendedStats = await aggregationBuilder.calculateGrowth({ 
-    filter: { ...excludeAdminFilter, status: USER_STATUS.SUSPENDED }, 
+  const subscribedStats = await aggregationBuilder.calculateGrowth({ 
+    filter: { ...excludeAdminFilter, subscriptionStatus: 'active' }, 
     period: 'month' 
   });
 
@@ -213,9 +207,8 @@ const getUserMetricsFromDB = async () => {
       comparisonPeriod: 'month',
     },
     totalUsers: formatMetric(totalStats),
-    activeUsers: formatMetric(activeStats),
-    pendingUsers: formatMetric(pendingStats),
-    suspendedUsers: formatMetric(suspendedStats),
+    activeUsersNewThisMonth: formatMetric(activeStats),
+    totalSubscribedNewThisMonth: formatMetric(subscribedStats),
   };
 };
 
@@ -241,6 +234,47 @@ const getAllUserRolesFromDB = async (query: Record<string, unknown>) => {
   const basePipeline: PipelineStage[] = [
     { $match: match },
     {
+      $lookup: {
+        from: 'wallets',
+        localField: '_id',
+        foreignField: 'user',
+        as: 'walletData'
+      }
+    },
+    {
+      $lookup: {
+        from: 'subscriptions',
+        localField: '_id',
+        foreignField: 'userId',
+        as: 'subscriptionData'
+      }
+    },
+    {
+      $addFields: {
+        subscriptionPlan: { $ifNull: [{ $arrayElemAt: ['$subscriptionData.plan', 0] }, 'FREE'] },
+        subscriptionStatus: { $ifNull: [{ $arrayElemAt: ['$subscriptionData.status', 0] }, 'INACTIVE'] },
+        coins: {
+          $let: {
+            vars: {
+              wallet: { $arrayElemAt: ['$walletData', 0] }
+            },
+            in: {
+              $add: [
+                { $ifNull: ['$$wallet.goldBalance', 0] },
+                { $reduce: {
+                    input: { $ifNull: ['$$wallet.bonusLedger', []] },
+                    initialValue: 0,
+                    in: { $add: ['$$value', '$$this.amount'] }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+
+    {
       $project:
         status === USER_STATUS.PENDING
           ? {
@@ -261,6 +295,9 @@ const getAllUserRolesFromDB = async (query: Record<string, unknown>) => {
               isVerified: 1,
               role: 1,
               profileImage: 1,
+              subscriptionPlan: 1,
+              subscriptionStatus: 1,
+              coins: 1,
               createdAt: 1,
               updatedAt: 1,
             },

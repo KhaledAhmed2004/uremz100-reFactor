@@ -32,6 +32,7 @@ export enum TransactionSource {
   PROFILE_COMPLETION = 'profile_completion',
   FOLLOW_FACEBOOK = 'follow_facebook',
   FOLLOW_INSTAGRAM = 'follow_instagram',
+  FOLLOW_YOUTUBE = 'follow_youtube',
   BIND_EMAIL = 'bind_email',
   FRESH_DRAMA = 'fresh_drama',
   LOGIN_REWARD = 'login_reward',
@@ -68,11 +69,15 @@ export interface IUserRewardProgress {
   >;
   adsWatchedToday: number;
   lastAdWatchDate?: Date;
-  watchTimeMilestonesClaimed: number[];
+  dailyWatchReward: {
+    lastClaimDate?: Date;
+    claimedDuration?: number;
+  };
   hasClaimedNotificationReward: boolean;
   hasClaimedProfileReward: boolean;
   hasClaimedFacebookReward: boolean;
   hasClaimedInstagramReward: boolean;
+  hasClaimedYoutubeReward: boolean;
   hasClaimedBindEmailReward: boolean;
   hasClaimedLoginReward: boolean;
   freshDramaWatchTimeClaimed: number[];

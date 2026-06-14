@@ -1368,6 +1368,354 @@ Feature: Daily Check-In Reward
         expect(res.body.data.nextStreakDay).toBe(5);
       });
     });
+
+    describe('Video Duration Based Coin Reward', () => {
+      let UserRewardProgress: any;
+
+      beforeAll(async () => {
+        const models = await import('../modules/reward/reward.model');
+        UserRewardProgress = models.UserRewardProgress;
+      });
+
+      const mockWatchReward = async (claimedDuration: number, lastClaimOffsetMs: number) => {
+        const lastClaimDate = new Date(Date.now() - lastClaimOffsetMs);
+        lastClaimDate.setUTCHours(0, 0, 0, 0);
+
+        await UserRewardProgress.findOneAndUpdate(
+          { user: testUserId },
+          {
+            $set: {
+              'dailyWatchReward.lastClaimDate': lastClaimDate,
+              'dailyWatchReward.claimedDuration': claimedDuration,
+            },
+          },
+          { new: true, upsert: true }
+        );
+      };
+
+      const clearWatchReward = async () => {
+        await UserRewardProgress.findOneAndUpdate(
+          { user: testUserId },
+          { $unset: { dailyWatchReward: 1 } },
+          { new: true }
+        );
+      };
+
+      it('should grant 10 coins for 5 minutes of watch time (Scenario 1)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 01. 5 MINUTE WATCH -> 10 COINS
+Feature: Video Duration Based Coin Reward
+  Scenario: User receives 10 coins for watching 5 minutes of video
+    Given the user is on the rewards page
+    And the user has not claimed a reward today
+    When the user watches a video for 5 minutes
+    Then the user receives 10 coins
+    And their daily reward status is marked as "claimed"
+`);
+        await clearWatchReward();
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/watch-time')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ videoDuration: 5 });
+
+        logApi('POST', '/api/v1/rewards/claim/watch-time', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { videoDuration: 5 } }, res.body, 'POST-WATCH-TIME-SCENARIO-01', 'User claims reward for 5 minutes');
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(10);
+      });
+
+      it('should grant 15 coins for 10 minutes of watch time (Scenario 2)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 02. 10 MINUTE WATCH -> 15 COINS
+Feature: Video Duration Based Coin Reward
+  Scenario: User receives 15 coins for watching 10 minutes of video
+    Given the user is on the rewards page
+    And the user has not claimed a reward today
+    When the user watches a video for 10 minutes
+    Then the user receives 15 coins
+    And their daily reward status is marked as "claimed"
+`);
+        await clearWatchReward();
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/watch-time')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ videoDuration: 10 });
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(15);
+      });
+
+      it('should grant 20 coins for 20 minutes of watch time (Scenario 3)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 03. 20 MINUTE WATCH -> 20 COINS
+Feature: Video Duration Based Coin Reward
+  Scenario: User receives 20 coins for watching 20 minutes of video
+    Given the user is on the rewards page
+    And the user has not claimed a reward today
+    When the user watches a video for 20 minutes
+    Then the user receives 20 coins
+    And their daily reward status is marked as "claimed"
+`);
+        await clearWatchReward();
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/watch-time')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ videoDuration: 20 });
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(20);
+      });
+
+      it('should grant 25 coins for 30 minutes of watch time (Scenario 4)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 04. 30 MINUTE WATCH -> 25 COINS
+Feature: Video Duration Based Coin Reward
+  Scenario: User receives 25 coins for watching 30 minutes of video
+    Given the user is on the rewards page
+    And the user has not claimed a reward today
+    When the user watches a video for 30 minutes
+    Then the user receives 25 coins
+    And their daily reward status is marked as "claimed"
+`);
+        await clearWatchReward();
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/watch-time')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ videoDuration: 30 });
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(25);
+      });
+
+      it('should grant 30 coins for 40 minutes of watch time (Scenario 5)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 05. 40 MINUTE WATCH -> 30 COINS
+Feature: Video Duration Based Coin Reward
+  Scenario: User receives 30 coins for watching 40 minutes of video
+    Given the user is on the rewards page
+    And the user has not claimed a reward today
+    When the user watches a video for 40 minutes
+    Then the user receives 30 coins
+    And their daily reward status is marked as "claimed"
+`);
+        await clearWatchReward();
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/watch-time')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ videoDuration: 40 });
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(30);
+      });
+
+      it('should block claiming twice on the same day (Scenario 6)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 06. CLAIM TWICE -> BLOCKED
+Feature: Video Duration Based Coin Reward
+  Scenario: User is blocked from claiming a reward twice in one day
+    Given the user is on the rewards page
+    And the user has already claimed a reward today
+    When the user watches another video
+    Then the user does not receive any coins
+    And the system shows an error: "You have already claimed your reward today. Please try again tomorrow."
+`);
+        // Mock that user already claimed today (0 offset)
+        await mockWatchReward(10, 0);
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/watch-time')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ videoDuration: 15 });
+
+        expect(res.status).toBe(StatusCodes.BAD_REQUEST);
+        expect(res.body.success).toBe(false);
+        expect(res.body.message).toBe('আপনি আজকে রিওয়ার্ড নিয়েছেন। পরের দিনে আবার চেষ্টা করুন।');
+      });
+
+      it('should reset the next day and allow claiming again (Scenario 7)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 07. NEXT DAY -> RESET & CLAIM
+Feature: Video Duration Based Coin Reward
+  Scenario: System resets the next day, allowing a new reward claim
+    Given the user claimed a reward yesterday
+    And today is a new day
+    When the user watches a video for 5 minutes
+    Then the user receives 10 coins
+    And their daily reward status is marked as "claimed"
+`);
+        // Mock that user claimed 1 day ago (86400000ms offset)
+        await mockWatchReward(20, 86400000);
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/watch-time')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ videoDuration: 5 });
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(10);
+      });
+
+      it('should return error if video duration is less than 5 minutes (Scenario 8)', async () => {
+        console.info(`
+📖 BDD SCENARIO: 08. < 5 MINUTE WATCH -> NO REWARD
+Feature: Video Duration Based Coin Reward
+  Scenario: User receives no reward for watching less than 5 minutes
+    Given the user is on the rewards page
+    And the user has not claimed a reward today
+    When the user watches a video for 3 minutes
+    Then the user does not receive any coins
+    And the system shows an error: "You must watch for at least 5 minutes to get a reward."
+`);
+        await clearWatchReward();
+
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/watch-time')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ videoDuration: 3 });
+
+        expect(res.status).toBe(StatusCodes.BAD_REQUEST);
+        expect(res.body.success).toBe(false);
+        expect(res.body.message).toBe('ভিডিও 5 মিনিট দেখতে হবে রিওয়ার্ড পেতে।');
+      });
+    });
+    describe('Other Rewards Flow', () => {
+      it('should grant 30 coins for watching an ad', async () => {
+        console.info(`
+📖 BDD SCENARIO: WATCH AD -> 30 COINS
+Feature: Ad Rewards
+  Scenario: User receives 30 coins for watching an ad
+    Given the user is on the rewards page
+    When the user successfully watches an ad
+    Then the user receives 30 coins
+    And the ad watch count is incremented
+`);
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/ad')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        logApi('POST', '/api/v1/rewards/claim/ad', { headers: { Authorization: `Bearer <USER_TOKEN>` } }, res.body, 'POST-CLAIM-AD', 'User claims reward for watching an ad');
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(30);
+      });
+
+      it('should grant 60 coins for initial login reward', async () => {
+        console.info(`
+📖 BDD SCENARIO: INITIAL LOGIN -> 60 COINS
+Feature: Login Rewards
+  Scenario: User receives 60 coins for their first login
+    Given the user has recently registered
+    When the user claims the initial login reward
+    Then the user receives 60 coins
+    And the login reward status is marked as claimed
+`);
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/login-reward')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        logApi('POST', '/api/v1/rewards/claim/login-reward', { headers: { Authorization: `Bearer <USER_TOKEN>` } }, res.body, 'POST-CLAIM-LOGIN', 'User claims initial login reward');
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(60);
+      });
+
+      it('should grant 60 coins for enabling push notifications', async () => {
+        console.info(`
+📖 BDD SCENARIO: ENABLE NOTIFICATIONS -> 60 COINS
+Feature: Notification Rewards
+  Scenario: User receives 60 coins for enabling push notifications
+    Given the user has not claimed the notification reward
+    When the user enables push notifications
+    Then the user receives 60 coins
+    And the notification reward status is marked as claimed
+`);
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/notification')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        logApi('POST', '/api/v1/rewards/claim/notification', { headers: { Authorization: `Bearer <USER_TOKEN>` } }, res.body, 'POST-CLAIM-NOTIFICATION', 'User claims notification enable reward');
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(60);
+      });
+
+      it('should grant 20 coins for following Facebook', async () => {
+        console.info(`
+📖 BDD SCENARIO: FOLLOW FACEBOOK -> 20 COINS
+Feature: Social Rewards
+  Scenario: User receives 20 coins for following Facebook
+    Given the user has not claimed the Facebook reward
+    When the user follows the Facebook page
+    Then the user receives 20 coins
+`);
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/social')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ platform: 'facebook' });
+
+        logApi('POST', '/api/v1/rewards/claim/social', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { platform: 'facebook' } }, res.body, 'POST-CLAIM-SOCIAL-FB', 'User claims Facebook follow reward');
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(20);
+      });
+
+      it('should grant 20 coins for following Instagram', async () => {
+        console.info(`
+📖 BDD SCENARIO: FOLLOW INSTAGRAM -> 20 COINS
+Feature: Social Rewards
+  Scenario: User receives 20 coins for following Instagram
+    Given the user has not claimed the Instagram reward
+    When the user follows the Instagram page
+    Then the user receives 20 coins
+`);
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/social')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ platform: 'instagram' });
+
+        logApi('POST', '/api/v1/rewards/claim/social', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { platform: 'instagram' } }, res.body, 'POST-CLAIM-SOCIAL-IG', 'User claims Instagram follow reward');
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(20);
+      });
+
+      it('should grant 20 coins for following YouTube', async () => {
+        console.info(`
+📖 BDD SCENARIO: FOLLOW YOUTUBE -> 20 COINS
+Feature: Social Rewards
+  Scenario: User receives 20 coins for following YouTube
+    Given the user has not claimed the YouTube reward
+    When the user follows the YouTube channel
+    Then the user receives 20 coins
+`);
+        const res = await request(app)
+          .post('/api/v1/rewards/claim/social')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ platform: 'youtube' });
+
+        logApi('POST', '/api/v1/rewards/claim/social', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { platform: 'youtube' } }, res.body, 'POST-CLAIM-SOCIAL-YT', 'User claims YouTube follow reward');
+
+        expect(res.status).toBe(StatusCodes.OK);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.rewardAmount).toBe(20);
+      });
+    });
   });
 
 });

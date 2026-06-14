@@ -83,11 +83,13 @@ describe('Master Admin Dashboard Flow (E2E)', () => {
   describe('1. Admin Authentication', () => {
     it('should successfully authenticate the admin and grant super access', () => {
       console.info(`
-📖 DOC: 
-Step 1: The Administrator logs into the management portal securely.
-The system validates the credentials and issues a SUPER_ADMIN JWT.
-With this token, the admin is granted god-mode access to all system 
-metrics, user data, and financial overviews.
+📖 BDD SCENARIO: 01. ADMIN AUTHENTICATION
+Feature: Admin Dashboard
+  Scenario: Administrator logs into the management portal
+    Given the admin provides valid SUPER_ADMIN credentials
+    When the system validates the login request
+    Then it issues a SUPER_ADMIN JWT token
+    And grants full access to system metrics
 `);
       expect(adminToken).toBeDefined();
       expect(typeof adminToken).toBe('string');
@@ -97,11 +99,13 @@ metrics, user data, and financial overviews.
   describe('2. Dashboard Overview & Analytics Page', () => {
     it('should fetch the high-level Growth Metrics successfully', async () => {
       console.info(`
-📖 DOC: 
-Step 2: The Admin navigates to the primary Dashboard Overview page.
-The frontend immediately requests the high-level 'Growth Metrics'.
-This includes total active users, revenue metrics, and system 
-health indicators.
+📖 BDD SCENARIO: 02. FETCH GROWTH METRICS
+Feature: Dashboard Overview
+  Scenario: Admin views high-level growth metrics
+    Given the admin is authenticated as SUPER_ADMIN
+    When the admin navigates to the Dashboard Overview
+    Then the server returns the 'Growth Metrics'
+    And the data includes active users and revenue stats
 `);
       const res = await request(app)
         .get('/api/v1/admin/growth-metrics')
@@ -116,10 +120,12 @@ health indicators.
 
     it('should fetch the Visitors Analytics successfully', async () => {
       console.info(`
-📖 DOC: 
-Step 3: The Admin scrolls to the 'Visitor Traffic' section.
-The frontend requests time-series data to render beautiful charts
-showing DAU (Daily Active Users) and MAU (Monthly Active Users).
+📖 BDD SCENARIO: 03. FETCH VISITOR ANALYTICS
+Feature: Dashboard Analytics
+  Scenario: Admin views visitor traffic charts
+    Given the admin is authenticated
+    When the frontend requests time-series visitor data
+    Then the server returns DAU and MAU metrics
 `);
       const res = await request(app)
         .get('/api/v1/admin/visitors/analytics')
@@ -134,10 +140,12 @@ showing DAU (Daily Active Users) and MAU (Monthly Active Users).
 
     it('should fetch the Revenue & Financial Stats successfully', async () => {
       console.info(`
-📖 DOC: 
-Step 4: The Admin clicks the 'Financial Overview' tab.
-The system calculates gross revenue, recent transaction volumes,
-and highlights top-grossing subscriptions.
+📖 BDD SCENARIO: 04. FETCH REVENUE STATS
+Feature: Financial Overview
+  Scenario: Admin views revenue statistics
+    Given the admin is on the Financial Overview tab
+    When the system calculates gross revenue
+    Then the server returns recent transaction volumes
 `);
       const res = await request(app)
         .get('/api/v1/admin/revenue/stats')
@@ -152,10 +160,12 @@ and highlights top-grossing subscriptions.
 
     it('should fetch the User Demographic Stats successfully', async () => {
       console.info(`
-📖 DOC: 
-Step 5: The Admin checks the 'User Base' widget.
-This pulls aggregated metrics on new signups, active memberships,
-and general user demographics for targeted marketing analysis.
+📖 BDD SCENARIO: 05. FETCH USER DEMOGRAPHICS
+Feature: User Base Metrics
+  Scenario: Admin analyzes user demographics
+    Given the admin checks the User Base widget
+    When the system aggregates new signups and memberships
+    Then the server returns user demographics data
 `);
       const res = await request(app)
         .get('/api/v1/admin/users/stats')
@@ -170,10 +180,12 @@ and general user demographics for targeted marketing analysis.
 
     it('should fetch the active Subscriptions Stats successfully', async () => {
       console.info(`
-📖 DOC: 
-Step 6: The Admin reviews the 'Subscription Health' monitor.
-The system returns a breakdown of Free vs Premium tiers, churn rate
-predictions, and current active VIP members.
+📖 BDD SCENARIO: 06. FETCH SUBSCRIPTION HEALTH
+Feature: Subscription Monitor
+  Scenario: Admin reviews subscription health
+    Given the admin checks the Subscription Health monitor
+    When the system retrieves subscription tiers
+    Then the server returns a breakdown of Free vs Premium tiers
 `);
       const res = await request(app)
         .get('/api/v1/admin/subscriptions/stats')
@@ -188,12 +200,35 @@ predictions, and current active VIP members.
   });
 
   describe('3. User Management Flow', () => {
+    it('should fetch user management metrics', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH USER METRICS
+Feature: User Management
+  Scenario: Admin views user growth and metrics
+    Given the admin navigates to the User Management page
+    When the frontend requests user metrics
+    Then the server returns user statistics
+`);
+      const res = await request(app)
+        .get('/api/v1/admin/users/stats')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/admin/users/stats', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-USER-METRICS', 'Admin fetches user metrics');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+    });
+
     it('should list all users securely', async () => {
       console.info(`
-📖 DOC: 
-Step 7: The Admin navigates to the 'User Management' page.
-The frontend issues a request to fetch a paginated list of all registered users
-along with their statuses and roles.
+📖 BDD SCENARIO: 07. LIST ALL USERS
+Feature: User Management
+  Scenario: Admin views the user directory
+    Given the admin navigates to the User Management page
+    When the frontend requests a list of all users
+    Then the server returns a paginated list of registered users
+    And their current statuses and roles
 `);
       const res = await request(app)
         .get('/api/v1/admin/users')
@@ -206,12 +241,92 @@ along with their statuses and roles.
       expect(res.body.data).toBeDefined();
     });
 
+    it('should search for users by name or email', async () => {
+      console.info(`
+📖 BDD SCENARIO: SEARCH USERS
+Feature: User Management
+  Scenario: Admin searches for a specific user
+    Given the admin is on the User Management page
+    When the frontend requests the user list with a 'searchTerm' query
+    Then the server returns a paginated list of users matching the search
+`);
+      const res = await request(app)
+        .get('/api/v1/admin/users?searchTerm=Target')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/admin/users?searchTerm=Target', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-USERS-SEARCH', 'Admin searches for users');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+    });
+
+    it('should filter users by status', async () => {
+      console.info(`
+📖 BDD SCENARIO: FILTER USERS BY STATUS
+Feature: User Management
+  Scenario: Admin filters the user list by their status
+    Given the admin is on the User Management page
+    When the frontend requests the user list with a 'status' query (e.g., ACTIVE, SUSPENDED)
+    Then the server returns only the users that match the requested status
+`);
+      // Test for ACTIVE status
+      const activeRes = await request(app)
+        .get('/api/v1/admin/users?status=ACTIVE')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/admin/users?status=ACTIVE', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, activeRes.body, 'GET-ADMIN-USERS-FILTER-ACTIVE', 'Admin filters users by active status');
+
+      expect(activeRes.status).toBe(StatusCodes.OK);
+      expect(activeRes.body.success).toBe(true);
+      expect(activeRes.body.data).toBeDefined();
+      if (activeRes.body.data.length > 0) {
+        expect(activeRes.body.data[0].status).toBe('ACTIVE');
+      }
+
+      // Test for SUSPENDED status
+      const suspendedRes = await request(app)
+        .get('/api/v1/admin/users?status=SUSPENDED')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/admin/users?status=SUSPENDED', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, suspendedRes.body, 'GET-ADMIN-USERS-FILTER-SUSPENDED', 'Admin filters users by suspended status');
+
+      expect(suspendedRes.status).toBe(StatusCodes.OK);
+      expect(suspendedRes.body.success).toBe(true);
+    });
+
+    it('should export the users to CSV format', async () => {
+      console.info(`
+📖 BDD SCENARIO: EXPORT USERS TO CSV
+Feature: User Management
+  Scenario: Admin exports the user directory
+    Given the admin wants to download user data
+    When the admin requests a CSV export from the backend
+    Then the server returns the user list formatted as a CSV file
+`);
+      const res = await request(app)
+        .get('/api/v1/admin/users/export')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/admin/users/export', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, "CSV Data Stream", 'GET-ADMIN-USERS-EXPORT', 'Admin exports users to CSV');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.headers['content-type']).toContain('text/csv');
+      expect(res.headers['content-disposition']).toContain('filename="users-export-');
+      expect(res.text).toBeDefined();
+      expect(res.text).toContain('"User Name","Email","Status","Role","Coins","Subscription Status","Plan","Joined At"');
+    });
+
     it('should view a specific user profile successfully', async () => {
       console.info(`
-📖 DOC: 
-Step 8: The Admin clicks on 'Target User' to inspect their profile.
-The system securely retrieves their PII, active subscriptions, and watch 
-history for administrative support.
+📖 BDD SCENARIO: 08. VIEW USER PROFILE
+Feature: User Management
+  Scenario: Admin inspects a specific user
+    Given the admin has the target user's ID
+    When the admin clicks on the target user's profile
+    Then the system retrieves their details, subscriptions, and history
 `);
       const res = await request(app)
         .get(`/api/v1/admin/users/${targetUserId}`)
@@ -225,13 +340,44 @@ history for administrative support.
       expect(returnedId).toBe(targetUserId);
     });
 
+    it('should edit user details by admin', async () => {
+      console.info(`
+📖 BDD SCENARIO: EDIT USER DETAILS
+Feature: User Management
+  Scenario: Admin updates user information
+    Given the admin wants to modify a user's details
+    When the admin submits updated name and profile info
+    Then the system updates the user
+    And returns the updated data
+`);
+      const res = await request(app)
+        .patch(`/api/v1/admin/users/${targetUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 'Admin Edited Name' });
+
+      logApi('PATCH', `/api/v1/admin/users/${targetUserId}`, { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { name: 'Admin Edited Name' } }, res.body, 'PATCH-ADMIN-USER-EDIT', 'Admin edits user profile');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.id).toBeDefined();
+
+      // Verify the edit took effect
+      const verifyRes = await request(app)
+        .get(`/api/v1/admin/users/${targetUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      
+      expect(verifyRes.body.data.name).toBe('Admin Edited Name');
+    });
+
     it('should suspend or block the user successfully', async () => {
       console.info(`
-📖 DOC: 
-Step 9: The Admin detects suspicious activity and updates the user's status 
-to 'SUSPENDED'.
-The backend enforces this change instantly, preventing the user from 
-accessing the platform until resolved.
+📖 BDD SCENARIO: 09. SUSPEND USER ACCOUNT
+Feature: User Management
+  Scenario: Admin detects suspicious activity and suspends user
+    Given the admin identifies a suspicious user
+    When the admin updates the user's status to 'SUSPENDED'
+    Then the backend enforces this change instantly
+    And prevents the user from accessing the platform
 `);
       const res = await request(app)
         .patch(`/api/v1/admin/users/${targetUserId}/status`)
@@ -246,9 +392,13 @@ accessing the platform until resolved.
 
     it('should securely delete the user from the system', async () => {
       console.info(`
-📖 DOC: 
-Step 10: The Admin permanently deletes the user account per GDPR request.
-The system cascades the deletion and fully removes the user from the database.
+📖 BDD SCENARIO: 10. PERMANENTLY DELETE USER
+Feature: User Management
+  Scenario: Admin processes a GDPR deletion request
+    Given the admin needs to delete a user account
+    When the admin triggers a permanent deletion
+    Then the system cascades the deletion
+    And fully removes the user from the database
 `);
       const res = await request(app)
         .delete(`/api/v1/admin/users/${targetUserId}`)
@@ -259,17 +409,39 @@ The system cascades the deletion and fully removes the user from the database.
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
     });
+
+    it('should bulk delete users securely', async () => {
+      console.info(`
+📖 BDD SCENARIO: BULK DELETE USERS
+Feature: User Management
+  Scenario: Admin processes a bulk deletion request
+    Given the admin has selected multiple users to delete
+    When the admin triggers a bulk deletion
+    Then the system permanently removes all selected users
+`);
+      // using a dummy ID or the already deleted targetUserId
+      const res = await request(app)
+        .delete('/api/v1/admin/users/bulk-delete')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ userIds: [targetUserId] });
+
+      logApi('DELETE', '/api/v1/admin/users/bulk-delete', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { userIds: ['<USER_ID>'] } }, res.body, 'DELETE-ADMIN-USERS-BULK', 'Admin bulk deletes users');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+    });
   });
 
   describe('4. Content Management Flow', () => {
     it('should manually boost a content to the Popular tab', async () => {
       console.info(`
-📖 DOC: 
-Step 11: The Admin wants to promote a brand-new movie that has zero views.
-They navigate to the Content Manager and toggle the "Force Popular" switch.
-The system securely updates the 'isPopularSeries' flag to true, instantly 
-placing the movie at the top of the user's Popular Feed, overriding the organic 
-Trending algorithm.
+📖 BDD SCENARIO: 11. MANUALLY BOOST CONTENT
+Feature: Content Management
+  Scenario: Admin promotes a movie to the Popular tab
+    Given a new movie has zero views
+    When the admin toggles the "Force Popular" switch
+    Then the system updates the 'isPopularSeries' flag to true
+    And the movie overrides the organic trending algorithm
 `);
       const res = await request(app)
         .patch(`/api/v1/admin/content/${targetContentId}/boost`)
@@ -281,6 +453,98 @@ Trending algorithm.
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
       expect(res.body.data.isPopularSeries).toBe(true);
+    });
+  });
+
+  describe('5. Genres Management Flow', () => {
+    let targetGenreId: string;
+
+    it('should create a new genre', async () => {
+      console.info(`
+📖 BDD SCENARIO: CREATE GENRE
+Feature: Genres Management
+  Scenario: Admin creates a new content genre
+    Given the admin wants to categorize content
+    When the admin submits a new genre with name and description
+    Then the system creates the genre
+    And returns the genre details
+`);
+      const payload = { name: 'E2E Genre', description: 'Created from Admin Flow test' };
+      const res = await request(app)
+        .post('/api/v1/genres')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload);
+
+      logApi('POST', '/api/v1/genres', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'POST-ADMIN-GENRES', 'Admin creates a new genre');
+
+      expect(res.status).toBe(StatusCodes.CREATED);
+      expect(res.body.success).toBe(true);
+      targetGenreId = res.body.data.id || res.body.data._id;
+      expect(targetGenreId).toBeDefined();
+    });
+
+    it('should fetch all genres securely', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH GENRES
+Feature: Genres Management
+  Scenario: Admin views all existing genres
+    Given the admin is on the genres page
+    When the admin fetches the genre list
+    Then the server returns the genres
+`);
+      const res = await request(app)
+        .get('/api/v1/genres')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/genres', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-GENRES', 'Admin fetches all genres');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('should edit the genre details securely', async () => {
+      console.info(`
+📖 BDD SCENARIO: EDIT GENRE
+Feature: Genres Management
+  Scenario: Admin updates a genre name
+    Given the admin has selected a genre
+    When the admin updates its name
+    Then the system reflects the updated name
+`);
+      const payload = { name: 'E2E Genre Updated' };
+      const res = await request(app)
+        .patch(`/api/v1/genres/${targetGenreId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload);
+
+      logApi('PATCH', `/api/v1/genres/${targetGenreId}`, { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'PATCH-ADMIN-GENRES', 'Admin edits genre');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.name).toBe('E2E Genre Updated');
+    });
+
+    it('should bulk delete the genres securely', async () => {
+      console.info(`
+📖 BDD SCENARIO: BULK DELETE GENRES
+Feature: Genres Management
+  Scenario: Admin deletes selected genres
+    Given the admin selected the test genre
+    When the admin triggers bulk deletion
+    Then the system permanently removes it
+`);
+      const payload = { ids: [targetGenreId] };
+      const res = await request(app)
+        .delete('/api/v1/genres')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload);
+
+      logApi('DELETE', '/api/v1/genres', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'DELETE-ADMIN-GENRES-BULK', 'Admin bulk deletes genres');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.deletedCount).toBeGreaterThanOrEqual(1);
     });
   });
 });
