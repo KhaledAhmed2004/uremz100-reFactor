@@ -14,6 +14,7 @@ import { HomeRoutes } from '../app/modules/home/home.route';
 import { MyCollectionRoutes } from '../app/modules/my-collection/my-collection.route';
 import { ShortsRoutes } from '../app/modules/shorts/shorts.route';
 import { RewardRoutes } from '../app/modules/reward/reward.route';
+import { RevenueRoutes } from '../app/modules/revenue/revenue.route';
 
 const router = express.Router();
 
@@ -45,6 +46,10 @@ const apiRoutes = [
   {
     path: '/admin/pending-emails',
     route: PendingEmailRoutes,
+  },
+  {
+    path: '/admin/revenues',
+    route: RevenueRoutes,
   },
   {
     path: '/support-tickets',
