@@ -7,7 +7,8 @@ import {
 
 const subscriptionEventSchema = new Schema<ISubscriptionEvent>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: false, index: true },
+    guestId: { type: String, required: false, index: true },
     subscriptionId: {
       type: Schema.Types.ObjectId,
       ref: 'Subscription',

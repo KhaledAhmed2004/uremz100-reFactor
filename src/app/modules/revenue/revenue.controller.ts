@@ -4,17 +4,30 @@ import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import { RevenueService } from './revenue.service';
 
-const getRevenuesData = catchAsync(async (req: Request, res: Response) => {
-  const result = await RevenueService.getRevenuesData(req.query);
+const getRevenueStats = catchAsync(async (req: Request, res: Response) => {
+  const result = await RevenueService.getRevenueStats();
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
     success: true,
-    message: 'Revenues data retrieved successfully',
+    message: 'Revenue stats retrieved successfully',
     data: result,
   });
 });
 
+const getRevenueTransactions = catchAsync(async (req: Request, res: Response) => {
+  const result = await RevenueService.getRevenueTransactions(req.query);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Revenue transactions retrieved successfully',
+    data: result.data,
+    meta: result.meta,
+  });
+});
+
 export const RevenueController = {
-  getRevenuesData,
+  getRevenueStats,
+  getRevenueTransactions,
 };

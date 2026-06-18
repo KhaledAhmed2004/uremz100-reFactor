@@ -30,7 +30,8 @@ export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
 
 export type ISubscriptionEvent = {
   _id?: Types.ObjectId;
-  userId: Types.ObjectId;
+  userId?: Types.ObjectId;
+  guestId?: string;
   subscriptionId: Types.ObjectId;
   eventType: SubscriptionEventType;
 

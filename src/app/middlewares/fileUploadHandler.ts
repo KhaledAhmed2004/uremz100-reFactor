@@ -25,11 +25,14 @@ const fileUploadHandler = () => {
       let uploadDir;
       switch (file.fieldname) {
         case 'image':
+        case 'profileImage':
+        case 'verificationImage':
         case 'posterFile':
         case 'thumbnailFile':
           uploadDir = path.join(baseUploadDir, 'image');
           break;
         case 'media':
+        case 'verificationVideo':
         case 'videoFile':
         case 'trailerFile':
           uploadDir = path.join(baseUploadDir, 'media');
@@ -59,7 +62,7 @@ const fileUploadHandler = () => {
 
   //file filter
   const filterFilter = (req: Request, file: any, cb: FileFilterCallback) => {
-    if (file.fieldname === 'image' || file.fieldname === 'posterFile' || file.fieldname === 'thumbnailFile') {
+    if (file.fieldname === 'image' || file.fieldname === 'profileImage' || file.fieldname === 'verificationImage' || file.fieldname === 'posterFile' || file.fieldname === 'thumbnailFile') {
       if (
         file.mimetype === 'image/jpeg' ||
         file.mimetype === 'image/png' ||
@@ -74,7 +77,7 @@ const fileUploadHandler = () => {
           )
         );
       }
-    } else if (file.fieldname === 'media' || file.fieldname === 'videoFile' || file.fieldname === 'trailerFile') {
+    } else if (file.fieldname === 'media' || file.fieldname === 'verificationVideo' || file.fieldname === 'videoFile' || file.fieldname === 'trailerFile') {
       const allowed = [
         'video/mp4',
         'video/webm',

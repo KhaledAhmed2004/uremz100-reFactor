@@ -107,10 +107,6 @@ const getUserProfileFromDB = async (
   if (isExistUser.location) {
     (isExistUser as any).country = isExistUser.location.country;
     (isExistUser as any).city = isExistUser.location.city;
-    if (isExistUser.location.coordinates) {
-      (isExistUser as any).latitude = isExistUser.location.coordinates[1];
-      (isExistUser as any).longitude = isExistUser.location.coordinates[0];
-    }
     delete isExistUser.location;
   }
 
@@ -137,16 +133,9 @@ const updateProfileToDB = async (
     unlinkFile(isExistUser.profileImage);
   }
 
-  // Transform legacy location format {latitude, longitude} to GeoJSON [longitude, latitude]
+  // Transform location (legacy latitude/longitude mapping removed)
   if (payload.location) {
-    const { latitude, longitude, ...remainingLocation } = payload.location as any;
-    if (latitude !== undefined && longitude !== undefined) {
-      payload.location = {
-        ...remainingLocation,
-        type: 'Point',
-        coordinates: [longitude, latitude],
-      } as any;
-    }
+    payload.location = payload.location as any;
   }
 
   const updateDoc = await User.findOneAndUpdate({ _id: id }, payload, {
@@ -386,33 +375,8 @@ const getUserProfilesFromDB = async (
   const pipeline: PipelineStage[] = [];
 
   // 1. Proximity Search & Sorting Logic
-  if (latitude && longitude) {
-    const userLat = parseFloat(latitude as string);
-    const userLng = parseFloat(longitude as string);
-
-    if (!isNaN(userLat) && !isNaN(userLng)) {
-      pipeline.push({
-        $geoNear: {
-          near: { type: 'Point', coordinates: [userLng, userLat] },
-          distanceField: 'distanceInKm',
-          spherical: true,
-          distanceMultiplier: 0.001, // Convert meters to km
-          query: match,
-        },
-      });
-
-      // If NOT explicitly nearby-me, sort by createdAt but keep distanceInKm
-      if (filter !== 'nearby-me') {
-        pipeline.push({ $sort: { createdAt: -1 } });
-      }
-    } else {
-      pipeline.push({ $match: match });
-      pipeline.push({ $sort: { _id: -1 as const } });
-    }
-  } else {
-    pipeline.push({ $match: match });
-    pipeline.push({ $sort: { _id: -1 as const } });
-  }
+  pipeline.push({ $match: match });
+  pipeline.push({ $sort: { _id: -1 as const } });
 
   // 2. Projection & Derived Fields
   pipeline.push({
@@ -421,7 +385,6 @@ const getUserProfilesFromDB = async (
       name: 1,
       profileImage: 1,
       revertDate: 1,
-      distanceInKm: 1,
       age: {
         $dateDiff: {
           startDate: '$dateOfBirth',
@@ -473,10 +436,6 @@ const getUserByIdFromDB = async (id: string, requester: JwtPayload): Promise<Par
   if (user.location) {
     (user as any).country = user.location.country;
     (user as any).city = user.location.city;
-    if (user.location.coordinates) {
-      (user as any).latitude = user.location.coordinates[1];
-      (user as any).longitude = user.location.coordinates[0];
-    }
     delete user.location;
   }
 
@@ -494,7 +453,7 @@ const SESSION_INVALIDATING_STATUSES: USER_STATUS[] = [
   USER_STATUS.INACTIVE,
 ];
 
-const updateUserStatusInDB = async (id: string, status: USER_STATUS, reason?: string) => {
+const updateUserStatusInDB = async (id: string, status: USER_STATUS) => {
   const user = await User.findById(id).select('+authentication'); // Need authentication for isVerified check
   if (!user) {
     throw new ApiError(StatusCodes.BAD_REQUEST, "User doesn't exist!");
@@ -527,9 +486,6 @@ const updateUserStatusInDB = async (id: string, status: USER_STATUS, reason?: st
     SESSION_INVALIDATING_STATUSES.includes(status) && user.status !== status;
 
   const update: Record<string, unknown> = { status };
-  if (reason) {
-    update.rejectionReason = reason;
-  }
 
   let reverifyToken: string | null = null;
   if (flippingToRejected) {
@@ -554,7 +510,6 @@ const updateUserStatusInDB = async (id: string, status: USER_STATUS, reason?: st
         name: updatedUser.name,
         reverifyToken,
         reverifyTtlHours: REVERIFY_TOKEN_TTL_HOURS,
-        rejectionReason: (updatedUser as any).rejectionReason,
       }),
       { kind: 'account_rejected_reverify' },
     );
@@ -601,31 +556,19 @@ const updateUserByAdminInDB = async (id: string, payload: Partial<IUser>) => {
 
   // Whitelist fields admin can update (excluding password/auth info)
   if (payload.name !== undefined) (user as any).name = payload.name;
-  if (payload.aboutMe !== undefined) (user as any).aboutMe = payload.aboutMe;
   if (payload.revertStory !== undefined) (user as any).revertStory = payload.revertStory;
-  if (payload.interests !== undefined) (user as any).interests = payload.interests;
   if (payload.email !== undefined) (user as any).email = payload.email;
   if (payload.dateOfBirth !== undefined) (user as any).dateOfBirth = payload.dateOfBirth;
   if (payload.revertDate !== undefined) (user as any).revertDate = payload.revertDate;
   
   if (payload.location !== undefined) {
-    const { latitude, longitude, ...remainingLocation } = payload.location as any;
-    if (latitude !== undefined && longitude !== undefined) {
-      (user as any).location = {
-        ...remainingLocation,
-        type: 'Point',
-        coordinates: [longitude, latitude],
-      };
-    } else {
-      (user as any).location = payload.location;
-    }
+    (user as any).location = payload.location;
   }
 
   if (payload.gender !== undefined) (user as any).gender = payload.gender;
   if (payload.profileImage !== undefined) (user as any).profileImage = payload.profileImage;
   if (payload.status !== undefined) (user as any).status = payload.status;
   if (payload.role !== undefined) (user as any).role = payload.role;
-  if (payload.rejectionReason !== undefined) (user as any).rejectionReason = payload.rejectionReason;
 
   // Status-change side effects — must stay in sync with updateUserStatusInDB
   // because this endpoint is the "combined" admin update that can also flip
@@ -662,7 +605,6 @@ const updateUserByAdminInDB = async (id: string, payload: Partial<IUser>) => {
         name: user.name,
         reverifyToken,
         reverifyTtlHours: REVERIFY_TOKEN_TTL_HOURS,
-        rejectionReason: (user as any).rejectionReason,
       }),
       { kind: 'account_rejected_reverify' },
     );
@@ -678,7 +620,7 @@ const updateUserByAdminInDB = async (id: string, payload: Partial<IUser>) => {
 
 const getUserDetailsByIdFromDB = async (id: string, requester: JwtPayload) => {
   const user = await User.findById(id).select(
-    '_id name role profileImage location isVerified revertDate aboutMe revertStory interests createdAt status deletedAt'
+    '_id name role profileImage location isVerified revertDate revertStory createdAt status deletedAt'
   );
 
   // 1. Check existence and visibility
@@ -702,10 +644,6 @@ const getUserDetailsByIdFromDB = async (id: string, requester: JwtPayload) => {
   if (result.location) {
     (result as any).country = result.location.country;
     (result as any).city = result.location.city;
-    if (result.location.coordinates) {
-      (result as any).latitude = result.location.coordinates[1];
-      (result as any).longitude = result.location.coordinates[0];
-    }
     delete result.location;
   }
 

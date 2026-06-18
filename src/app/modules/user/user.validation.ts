@@ -37,31 +37,23 @@ const updateUserZodSchema = z.object({
   body: z.object({
     name: z.string().optional(),
     gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
-    aboutMe: z.string().optional(),
     dateOfBirth: z.string().datetime().optional(),
-    interests: z
+    profileImage: z.string().optional(),
+    location: z
       .preprocess((v: unknown) => {
         if (typeof v === 'string') {
-          try { return JSON.parse(v); } catch { return v; }
+          try {
+            return JSON.parse(v);
+          } catch {
+            return v;
+          }
         }
         return v;
-      }, z.array(z.string()))
-      .optional(),
-    profileImage: z.string().optional(),
-    location: z.union([
-      z.object({
+      }, z.object({
         country: z.string().optional(),
-        city: z.string().optional(),
-        latitude: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().min(-90).max(90)),
-        longitude: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().min(-180).max(180))
-      }),
-      z.object({
-        country: z.string().optional(),
-        city: z.string().optional(),
-        type: z.literal('Point'),
-        coordinates: z.tuple([z.number(), z.number()])
-      })
-    ]).optional()
+        city: z.string().optional()
+      }))
+      .optional()
   }),
 });
 
@@ -75,8 +67,7 @@ export const UserValidation = {
     body: z.object({
       status: z.enum([USER_STATUS.ACTIVE, USER_STATUS.REJECTED, USER_STATUS.SUSPENDED], {
         required_error: 'status is required',
-      }),
-      rejectionReason: z.string().optional()
+      })
     }),
   }),
   updateUserReviewZodSchema: z.object({
@@ -86,17 +77,8 @@ export const UserValidation = {
     body: z.object({
       status: z.enum([USER_STATUS.ACTIVE, USER_STATUS.REJECTED], {
         required_error: 'Status is required (ACTIVE or REJECTED)',
-      }),
-      reason: z.string().optional(),
-    }).refine((data) => {
-      if (data.status === USER_STATUS.REJECTED && !data.reason) {
-        return false;
-      }
-      return true;
-    }, {
-      message: 'Reason is required when status is REJECTED',
-      path: ['reason'],
-    }),
+      })
+    })
   }),
   adminUpdateUserZodSchema: z.object({
     params: z.object({
@@ -119,8 +101,7 @@ export const UserValidation = {
         USER_ROLES.ADMIN, 
         USER_ROLES.USER
       ]).optional(),
-      aboutMe: z.string().optional(),
-      interests: z
+      location: z
         .preprocess((v: unknown) => {
           if (typeof v === 'string') {
             try {
@@ -130,22 +111,11 @@ export const UserValidation = {
             }
           }
           return v;
-        }, z.array(z.string()))
-        .optional(),
-      location: z.union([
-        z.object({
+        }, z.object({
           country: z.string().optional(),
-          city: z.string().optional(),
-          latitude: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().min(-90).max(90)).optional(),
-          longitude: z.preprocess((v) => (v === '' ? undefined : Number(v)), z.number().min(-180).max(180)).optional()
-        }),
-        z.object({
-          country: z.string().optional(),
-          city: z.string().optional(),
-          type: z.literal('Point'),
-          coordinates: z.tuple([z.number(), z.number()])
-        })
-      ]).optional()
+          city: z.string().optional()
+        }))
+        .optional()
     }),
   }),
   getUserDetailsZodSchema: z.object({

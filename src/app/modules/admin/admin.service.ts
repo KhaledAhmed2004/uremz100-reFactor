@@ -798,13 +798,13 @@ const getSubscriptionsStats = async () => {
     meta: { comparisonPeriod: 'month' },
     totalUsers: formatMetric(totalUsers),
     totalRevenue: {
-      value: `$${(totalRevenue / 1000000).toFixed(2)}M`, // Display in Millions for the dashboard
+      value: Number(totalRevenue.toFixed(2)),
       changePct: 0, // Growth not calculated for this specific metric here yet
       direction: 'neutral',
     },
     activeSubscribers: formatMetric(activeSubscribers),
     growthRate: {
-      value: `${activeSubscribers.growth > 0 ? '+' : ''}${activeSubscribers.growth.toFixed(1)}%`,
+      value: Number(activeSubscribers.growth.toFixed(1)),
       changePct: Math.abs(Number(activeSubscribers.growth.toFixed(1))),
       direction:
         activeSubscribers.growth > 0

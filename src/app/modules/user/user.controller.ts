@@ -91,7 +91,19 @@ const updateProfile = catchAsync(async (req: Request, res: Response) => {
 
   // Handle file if uploaded
   if (req.file) {
-    payload.profileImage = (req.file as any).location || req.file.path;
+    let filePath = (req.file as any).location || req.file.path;
+    // If it's a local path, convert it to a relative URL for the frontend
+    if (!filePath.startsWith('http')) {
+      const normalizedPath = filePath.replace(/\\/g, '/');
+      const uploadIndex = normalizedPath.indexOf('/uploads/');
+      if (uploadIndex !== -1) {
+        filePath = normalizedPath.substring(uploadIndex);
+      } else {
+        // Fallback if /uploads/ is not found
+        filePath = '/' + req.file.path.replace(/\\/g, '/');
+      }
+    }
+    payload.profileImage = filePath;
   }
 
   const result = await UserService.updateProfileToDB(
@@ -113,9 +125,9 @@ const updateProfile = catchAsync(async (req: Request, res: Response) => {
 
 const updateUserReview = catchAsync(async (req: Request, res: Response) => {
   const { userId } = req.params;
-  const { status, reason } = req.body as { status: USER_STATUS; reason?: string };
+  const { status } = req.body as { status: USER_STATUS };
 
-  const result = await UserService.updateUserStatusInDB(userId, status, reason);
+  const result = await UserService.updateUserStatusInDB(userId, status);
 
   sendResponse(res, {
     success: true,

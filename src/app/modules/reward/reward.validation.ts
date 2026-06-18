@@ -6,14 +6,17 @@ const claimWatchTimeRewardZodSchema = z.object({
   }),
 });
 
-const claimSocialRewardZodSchema = z.object({
+const claimTaskZodSchema = z.object({
   body: z.object({
-    platform: z.enum(['facebook', 'instagram', 'youtube'], { required_error: 'Platform must be facebook, instagram or youtube' }),
+    taskType: z.enum(
+      ['LOGIN', 'NOTIFICATION', 'FACEBOOK', 'INSTAGRAM', 'YOUTUBE', 'BIND_EMAIL', 'PROFILE_COMPLETION', 'WATCH_AD'],
+      { required_error: 'taskType is required and must be a valid task type' }
+    ),
   }),
 });
 
 export const RewardValidation = {
   claimWatchTimeRewardZodSchema,
-  claimSocialRewardZodSchema,
+  claimTaskZodSchema,
 };
 

@@ -6,6 +6,25 @@ import { REWARD_CONFIG } from './reward.constant';
 import { User } from '../user/user.model';
 import { startSession } from 'mongoose';
 
+// Helper to automatically create wallet/progress for guests
+const getOrCreateWalletAndProgress = async (ownerQuery: Record<string, any>, session?: any) => {
+  const options = session ? { session } : {};
+  let wallet = await Wallet.findOne(ownerQuery).session(session || null);
+  let progress = await UserRewardProgress.findOne(ownerQuery).session(session || null);
+
+  if (!wallet) {
+    const newWallet = new Wallet({ ...ownerQuery, goldBalance: 0, bonusLedger: [] });
+    wallet = await newWallet.save(options);
+  }
+
+  if (!progress) {
+    const newProgress = new UserRewardProgress(ownerQuery);
+    progress = await newProgress.save(options);
+  }
+
+  return { wallet, progress };
+};
+
 // Helper to filter and calculate active bonus balance
 const getActiveBonus = (bonusLedger: any[]) => {
   const now = new Date().getTime();
@@ -20,11 +39,8 @@ const getActiveBonus = (bonusLedger: any[]) => {
   return { bonusBalance, activeLedgers };
 };
 
-const getWalletDetails = async (userId: string) => {
-  const wallet = await Wallet.findOne({ user: userId });
-  if (!wallet) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Wallet not found for this user');
-  }
+const getWalletDetails = async (ownerQuery: Record<string, any>) => {
+  const { wallet } = await getOrCreateWalletAndProgress(ownerQuery);
 
   const { bonusBalance, activeLedgers } = getActiveBonus(wallet.bonusLedger);
 
@@ -34,16 +50,26 @@ const getWalletDetails = async (userId: string) => {
     wallet.save().catch(console.error); // Fire and forget
   }
 
-  const transactions = await Transaction.find({ wallet: wallet._id })
-    .sort({ createdAt: -1 })
-    .limit(50); // Get recent 50 transactions
-
-  const progress = await UserRewardProgress.findOne({ user: userId });
+  const progressDoc = await UserRewardProgress.findOne(ownerQuery).lean();
+  
+  let progress: any = null;
+  if (progressDoc) {
+    progress = {
+      ...progressDoc,
+      dailyWatchReward: progressDoc.dailyWatchReward || {
+        lastClaimDate: null,
+        claimedDuration: 0,
+      }
+    };
+    
+    // Remove fields from the response DTO
+    delete progress.freshDramaWatchTimeClaimed;
+    delete progress.hasClaimedBindEmailReward;
+    delete progress.hasClaimedProfileReward;
+  }
 
   return {
-    goldBalance: wallet.goldBalance,
-    bonusBalance,
-    transactions,
+    coinBalance: wallet.goldBalance + bonusBalance,
     progress,
   };
 };
@@ -51,13 +77,12 @@ const getWalletDetails = async (userId: string) => {
 // Generic helper to add bonus coins
 const grantBonusCoins = async (
   session: any,
-  userId: string,
+  ownerQuery: Record<string, any>,
   amount: number,
   source: TransactionSource,
   description: string
 ) => {
-  const wallet = await Wallet.findOne({ user: userId }).session(session);
-  if (!wallet) throw new ApiError(StatusCodes.NOT_FOUND, 'Wallet not found');
+  const { wallet } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + REWARD_CONFIG.BONUS_EXPIRATION_DAYS);
@@ -82,7 +107,7 @@ const grantBonusCoins = async (
   return wallet;
 };
 
-const claimWatchTimeReward = async (userId: string, videoDuration: number) => {
+const claimWatchTimeReward = async (ownerQuery: Record<string, any>, videoDuration: number) => {
   if (videoDuration < 5) {
     throw new ApiError(StatusCodes.BAD_REQUEST, 'ভিডিও 5 মিনিট দেখতে হবে রিওয়ার্ড পেতে।');
   }
@@ -101,8 +126,7 @@ const claimWatchTimeReward = async (userId: string, videoDuration: number) => {
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -117,7 +141,7 @@ const claimWatchTimeReward = async (userId: string, videoDuration: number) => {
       }
     }
 
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.WATCH_TIME, `Watched ${videoDuration} Minutes (Daily Reward)`);
+    await grantBonusCoins(session, ownerQuery, rewardAmount, TransactionSource.WATCH_TIME, `Watched ${videoDuration} Minutes (Daily Reward)`);
 
     progress.dailyWatchReward = {
       lastClaimDate: new Date(),
@@ -136,7 +160,7 @@ const claimWatchTimeReward = async (userId: string, videoDuration: number) => {
   }
 };
 
-const claimFreshWatchTimeReward = async (userId: string, minutes: number) => {
+const claimFreshWatchTimeReward = async (ownerQuery: Record<string, any>, minutes: number) => {
   const allowedMilestones = Object.keys(REWARD_CONFIG.FRESH_DRAMA).map(Number);
   if (!allowedMilestones.includes(minutes)) {
     throw new ApiError(StatusCodes.BAD_REQUEST, `Invalid milestone. Allowed milestones: ${allowedMilestones.join(', ')}`);
@@ -147,14 +171,13 @@ const claimFreshWatchTimeReward = async (userId: string, minutes: number) => {
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     if (progress.freshDramaWatchTimeClaimed.includes(minutes)) {
       throw new ApiError(StatusCodes.BAD_REQUEST, `Milestone ${minutes} minutes already claimed for fresh dramas`);
     }
 
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.FRESH_DRAMA, `Watched Fresh Drama ${minutes} Minutes`);
+    await grantBonusCoins(session, ownerQuery, rewardAmount, TransactionSource.FRESH_DRAMA, `Watched Fresh Drama ${minutes} Minutes`);
 
     progress.freshDramaWatchTimeClaimed.push(minutes);
     await progress.save({ session });
@@ -170,12 +193,11 @@ const claimFreshWatchTimeReward = async (userId: string, minutes: number) => {
   }
 };
 
-const claimDailyCheckIn = async (userId: string) => {
+const claimDailyCheckIn = async (ownerQuery: Record<string, any>) => {
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     const today = new Date();
     const todayUTC = new Date(today);
@@ -216,7 +238,7 @@ const claimDailyCheckIn = async (userId: string) => {
 
     const rewardCoins = REWARD_CONFIG.DAILY_CHECK_IN[currentDay as keyof typeof REWARD_CONFIG.DAILY_CHECK_IN] || 10;
 
-    await grantBonusCoins(session, userId, rewardCoins, TransactionSource.DAILY_CHECK_IN, `Day ${currentDay} Check-in`);
+    await grantBonusCoins(session, ownerQuery, rewardCoins, TransactionSource.DAILY_CHECK_IN, `Day ${currentDay} Check-in`);
 
     progress.checkInRewards.set(`day${currentDay}`, { claimed: true, claimedAt: today });
     progress.checkInStreak.lastClaimDate = today;
@@ -250,12 +272,11 @@ const claimDailyCheckIn = async (userId: string) => {
   }
 };
 
-const claimWatchAdReward = async (userId: string) => {
+const claimWatchAdReward = async (ownerQuery: Record<string, any>) => {
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     const today = new Date();
     const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
@@ -276,7 +297,7 @@ const claimWatchAdReward = async (userId: string) => {
 
     const rewardAmount = REWARD_CONFIG.WATCH_AD.REWARD_PER_AD;
 
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.WATCH_AD, `Watched Ad`);
+    await grantBonusCoins(session, ownerQuery, rewardAmount, TransactionSource.WATCH_AD, `Watched Ad`);
 
     progress.adsWatchedToday += 1;
     progress.lastAdWatchDate = todayUTC;
@@ -293,12 +314,11 @@ const claimWatchAdReward = async (userId: string) => {
   }
 };
 
-const claimNotificationReward = async (userId: string) => {
+const claimNotificationReward = async (ownerQuery: Record<string, any>) => {
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     if (progress.hasClaimedNotificationReward) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Notification reward already claimed');
@@ -306,7 +326,7 @@ const claimNotificationReward = async (userId: string) => {
 
     const rewardAmount = REWARD_CONFIG.ENABLE_NOTIFICATION;
 
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.ENABLE_NOTIFICATION, `Enabled Notifications`);
+    await grantBonusCoins(session, ownerQuery, rewardAmount, TransactionSource.ENABLE_NOTIFICATION, `Enabled Notifications`);
 
     progress.hasClaimedNotificationReward = true;
     await progress.save({ session });
@@ -322,12 +342,11 @@ const claimNotificationReward = async (userId: string) => {
   }
 };
 
-const claimSocialReward = async (userId: string, platform: 'facebook' | 'instagram' | 'youtube') => {
+const claimSocialReward = async (ownerQuery: Record<string, any>, platform: 'facebook' | 'instagram' | 'youtube') => {
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     if (platform === 'facebook' && progress.hasClaimedFacebookReward) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Facebook reward already claimed');
@@ -353,7 +372,7 @@ const claimSocialReward = async (userId: string, platform: 'facebook' | 'instagr
       source = TransactionSource.FOLLOW_YOUTUBE;
     }
 
-    await grantBonusCoins(session, userId, rewardAmount, source, `Followed on ${platform}`);
+    await grantBonusCoins(session, ownerQuery, rewardAmount, source, `Followed on ${platform}`);
 
     if (platform === 'facebook') progress.hasClaimedFacebookReward = true;
     if (platform === 'instagram') progress.hasClaimedInstagramReward = true;
@@ -371,25 +390,27 @@ const claimSocialReward = async (userId: string, platform: 'facebook' | 'instagr
   }
 };
 
-const claimBindEmailReward = async (userId: string) => {
+const claimBindEmailReward = async (ownerQuery: Record<string, any>) => {
+  if (ownerQuery.guestId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Please register an account to claim the bind email reward');
+  }
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     if (progress.hasClaimedBindEmailReward) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Bind Email reward already claimed');
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(ownerQuery.user);
     if (!user || !user.email || !user.isVerified) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Email is not verified or bound');
     }
 
     const rewardAmount = REWARD_CONFIG.BIND_EMAIL;
 
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.BIND_EMAIL, `Bound Email`);
+    await grantBonusCoins(session, ownerQuery, rewardAmount, TransactionSource.BIND_EMAIL, `Bound Email`);
 
     progress.hasClaimedBindEmailReward = true;
     await progress.save({ session });
@@ -405,12 +426,11 @@ const claimBindEmailReward = async (userId: string) => {
   }
 };
 
-const claimLoginReward = async (userId: string) => {
+const claimLoginReward = async (ownerQuery: Record<string, any>) => {
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     if (progress.hasClaimedLoginReward) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Login reward already claimed');
@@ -418,7 +438,7 @@ const claimLoginReward = async (userId: string) => {
 
     const rewardAmount = REWARD_CONFIG.LOGIN_REWARD;
 
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.LOGIN_REWARD, `Initial Login Reward`);
+    await grantBonusCoins(session, ownerQuery, rewardAmount, TransactionSource.LOGIN_REWARD, `Initial Login Reward`);
 
     progress.hasClaimedLoginReward = true;
     await progress.save({ session });
@@ -434,18 +454,20 @@ const claimLoginReward = async (userId: string) => {
   }
 };
 
-const claimProfileCompletionReward = async (userId: string) => {
+const claimProfileCompletionReward = async (ownerQuery: Record<string, any>) => {
+  if (ownerQuery.guestId) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, 'Please register an account to claim the profile completion reward');
+  }
   const session = await startSession();
   session.startTransaction();
   try {
-    const progress = await UserRewardProgress.findOne({ user: userId }).session(session);
-    if (!progress) throw new ApiError(StatusCodes.NOT_FOUND, 'Reward progress not found');
+    const { progress } = await getOrCreateWalletAndProgress(ownerQuery, session);
 
     if (progress.hasClaimedProfileReward) {
       throw new ApiError(StatusCodes.BAD_REQUEST, 'Profile completion reward already claimed');
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(ownerQuery.user);
     if (!user) throw new ApiError(StatusCodes.NOT_FOUND, 'User not found');
 
     const isProfileComplete = user.name && user.email && user.profileImage;
@@ -453,7 +475,7 @@ const claimProfileCompletionReward = async (userId: string) => {
 
     const rewardAmount = REWARD_CONFIG.PROFILE_COMPLETION;
 
-    await grantBonusCoins(session, userId, rewardAmount, TransactionSource.PROFILE_COMPLETION, `Profile Completed`);
+    await grantBonusCoins(session, ownerQuery, rewardAmount, TransactionSource.PROFILE_COMPLETION, `Profile Completed`);
 
     progress.hasClaimedProfileReward = true;
     await progress.save({ session });

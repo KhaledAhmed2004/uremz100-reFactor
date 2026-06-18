@@ -15,9 +15,17 @@ const subscriptionSchema = new Schema<ISubscription>(
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: false,
       index: true,
       unique: true,
+      sparse: true,
+    },
+    guestId: {
+      type: String,
+      required: false,
+      index: true,
+      unique: true,
+      sparse: true,
     },
     plan: {
       type: String,
@@ -75,31 +83,37 @@ const subscriptionSchema = new Schema<ISubscription>(
   { timestamps: true }
 );
 
-subscriptionSchema.statics.findByUser = async function (userId: Types.ObjectId) {
-  return this.findOne({ userId });
+subscriptionSchema.statics.findByUserOrGuest = async function (userId?: Types.ObjectId, guestId?: string) {
+  if (userId) return this.findOne({ userId });
+  if (guestId) return this.findOne({ guestId });
+  return null;
 };
 
 /**
- * Upserts the current-state `subscriptions` row for a user AND appends an
+ * Upserts the current-state `subscriptions` row for a user or guest AND appends an
  * entry to `subscription_events` capturing what changed. The events
  * collection is the durable audit trail — the `subscriptions` row is the
  * single "current state" view.
  */
-subscriptionSchema.statics.upsertForUser = async function (
-  userId: Types.ObjectId,
+subscriptionSchema.statics.upsertForUserOrGuest = async function (
+  userId: Types.ObjectId | undefined,
+  guestId: string | undefined,
   payload: Partial<ISubscription>
 ) {
+  const query = userId ? { userId } : { guestId };
+  if (!userId && !guestId) throw new Error('Either userId or guestId is required');
+
   // 1. Atomically perform the update and capture the state BEFORE the change.
   // { new: false } returns the document as it was before the update.
   // If the document is newly inserted via upsert, `before` will be null.
   const before = await this.findOneAndUpdate(
-    { userId },
-    { $set: { ...payload, userId } },
+    query,
+    { $set: { ...payload, ...query } },
     { new: false, upsert: true, setDefaultsOnInsert: true }
   );
 
   // 2. Fetch the state AFTER the change to return to the caller and log the diff.
-  const next = await this.findOne({ userId });
+  const next = await this.findOne(query);
   if (!next) {
     throw new Error('Failed to retrieve subscription after upsert');
   }
@@ -165,6 +179,7 @@ subscriptionSchema.statics.upsertForUser = async function (
     try {
       await SubscriptionEvent.create({
         userId,
+        guestId,
         subscriptionId: next._id,
         eventType: type,
         previousPlan: beforePlan,
@@ -186,18 +201,20 @@ subscriptionSchema.statics.upsertForUser = async function (
   }
 
   // Synchronize the core subscription state onto the User model directly.
-  try {
-    await model('User').findByIdAndUpdate(userId, {
-      $set: {
-        subscriptionTier: next.plan,
-        subscriptionStatus: next.status,
-        subscriptionExpiryDate: next.currentPeriodEnd,
-        appleOriginalTransactionId: next.appleOriginalTransactionId,
-        googlePurchaseToken: next.googlePurchaseToken,
-      },
-    });
-  } catch (err) {
-    console.error('Failed to sync subscription to User model:', err);
+  if (userId) {
+    try {
+      await model('User').findByIdAndUpdate(userId, {
+        $set: {
+          subscriptionTier: next.plan,
+          subscriptionStatus: next.status,
+          subscriptionExpiryDate: next.currentPeriodEnd,
+          appleOriginalTransactionId: next.appleOriginalTransactionId,
+          googlePurchaseToken: next.googlePurchaseToken,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to sync subscription to User model:', err);
+    }
   }
 
   return next;

@@ -22,7 +22,8 @@ const bonusLedgerSchema = new Schema(
 
 const walletSchema = new Schema<IWallet, WalletModel>(
   {
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    user: { type: Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
+    guestId: { type: String, unique: true, sparse: true },
     goldBalance: { type: Number, required: true, default: 0 },
     bonusLedger: { type: [bonusLedgerSchema], default: [] },
   },
@@ -51,7 +52,8 @@ export const Transaction = model<ITransaction, TransactionModel>('Transaction', 
 
 const userRewardProgressSchema = new Schema<IUserRewardProgress, UserRewardProgressModel>(
   {
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    user: { type: Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
+    guestId: { type: String, unique: true, sparse: true },
     checkInStreak: {
       currentDay: { type: Number, default: 1 },
       lastClaimDate: { type: Date },

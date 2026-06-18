@@ -31,7 +31,7 @@ const ACTIVE_STATUSES: ReadonlySet<SubscriptionStatusType> = new Set<
 export const getUserEntitlement = async (
   userId: string
 ): Promise<UserEntitlement> => {
-  const sub = await SubscriptionModel.findByUser(new Types.ObjectId(userId));
+  const sub = await SubscriptionModel.findByUserOrGuest(new Types.ObjectId(userId), undefined);
 
   if (!sub) {
     return {

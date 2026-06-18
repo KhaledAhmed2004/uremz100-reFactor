@@ -6,9 +6,15 @@ import { RevenueController } from './revenue.controller';
 const router = express.Router();
 
 router.get(
+  '/stats',
+  auth(USER_ROLES.SUPER_ADMIN),
+  RevenueController.getRevenueStats,
+);
+
+router.get(
   '/',
   auth(USER_ROLES.SUPER_ADMIN),
-  RevenueController.getRevenuesData,
+  RevenueController.getRevenueTransactions,
 );
 
 export const RevenueRoutes = router;

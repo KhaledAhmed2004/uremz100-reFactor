@@ -265,7 +265,9 @@ export const handleAppleNotification = async (
     lastAppleNotificationAt: new Date().toISOString(),
   };
 
-  await SubscriptionModel.upsertForUser(existing.userId, {
+  await SubscriptionModel.upsertForUserOrGuest(
+    existing.userId,
+    existing.guestId, {
     ...updates,
     metadata: newMetadata,
   });

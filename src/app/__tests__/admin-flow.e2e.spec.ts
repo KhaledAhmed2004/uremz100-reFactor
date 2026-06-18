@@ -6,6 +6,8 @@ import request from 'supertest';
 import app from '../../app';
 import { User } from '../modules/user/user.model';
 import { Content } from '../modules/content/content.model';
+import { RevenueTransaction } from '../modules/revenue/revenue.model';
+import { Subscription } from '../modules/subscription/subscription.model';
 import { jwtHelper } from '../../helpers/jwtHelper';
 import config from '../../config';
 import { Secret } from 'jsonwebtoken';
@@ -61,6 +63,41 @@ beforeAll(async () => {
     isPopularSeries: false,
   });
   targetContentId = content._id.toString();
+
+  // 4. Create a Dummy Revenue Transaction
+  await RevenueTransaction.create({
+    userId: targetUserId,
+    trxId: `TRX-${randomUUID()}`,
+    coinAmount: 10,
+    subscriptionAmount: 0,
+    totalAmount: 10,
+    currency: 'USD',
+    platform: 'stripe',
+    status: 'SUCCESS',
+  });
+
+  // 5. Create a Dummy Subscription
+  await Subscription.create({
+    userId: targetUserId,
+    plan: 'PREMIUM',
+    status: 'active',
+    platform: 'admin',
+    productId: 'premium_weekly',
+    startedAt: new Date(),
+    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  });
+
+  // 6. Create a Dummy Guest Subscription
+  await Subscription.create({
+    guestId: 'guest-a1b2c3d4-e5f6-7890',
+    plan: 'PREMIUM',
+    status: 'active',
+    platform: 'apple',
+    productId: 'premium_monthly',
+    appleOriginalTransactionId: `TRX-GUEST-${randomUUID().slice(0, 8)}`,
+    startedAt: new Date(),
+    currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  });
 
   // Generate valid JWT token for the admin
   adminToken = jwtHelper.createToken(
@@ -365,7 +402,7 @@ Feature: User Management
       const verifyRes = await request(app)
         .get(`/api/v1/admin/users/${targetUserId}`)
         .set('Authorization', `Bearer ${adminToken}`);
-      
+
       expect(verifyRes.body.data.name).toBe('Admin Edited Name');
     });
 
@@ -548,31 +585,102 @@ Feature: Genres Management
     });
   });
 
-  describe('6. Settings Page Flow', () => {
-    it('should update the admin profile successfully', async () => {
+  describe('6. Subscription Management Flow', () => {
+    it('should fetch the subscription analytics successfully', async () => {
       console.info(`
-📖 BDD SCENARIO: UPDATE ADMIN PROFILE
-Feature: Settings
-  Scenario: Admin updates their own profile details
-    Given the admin is on the settings page
-    When the admin submits updated profile information
-    Then the system updates the admin profile
-    And returns the updated details
+📖 BDD SCENARIO: FETCH SUBSCRIPTION STATS
+Feature: Subscription Management
+  Scenario: Admin views subscription metrics
+    Given the admin is on the subscription page
+    When the admin requests subscription stats
+    Then the system returns the metrics
 `);
-      const payload = { name: 'Super Admin Updated', aboutMe: 'Testing settings flow' };
       const res = await request(app)
-        .patch('/api/v1/users/me')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send(payload);
+        .get('/api/v1/subscriptions/stats')
+        .set('Authorization', `Bearer ${adminToken}`);
 
-      logApi('PATCH', '/api/v1/users/me', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'PATCH-ADMIN-PROFILE', 'Admin updates their own profile');
+      logApi('GET', '/api/v1/subscriptions/stats', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-SUBSCRIPTIONS-STATS', 'Admin fetches subscription stats');
 
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.name).toBe('Super Admin Updated');
-      expect(res.body.data.aboutMe).toBe('Testing settings flow');
+      expect(res.body.data.totalUsers.value).toBeDefined();
+      expect(res.body.data.totalUsers.changePct).toBeDefined();
+      expect(res.body.data.totalUsers.direction).toBeDefined();
+      expect(res.body.data.totalRevenue.value).toBeDefined();
+      expect(res.body.data.activeSubscribers.value).toBeDefined();
+      expect(res.body.data.growthRate.value).toBeDefined();
+    });
+
+    it('should fetch the subscriptions table data successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH SUBSCRIPTIONS LIST
+Feature: Subscription Management
+  Scenario: Admin views paginated subscriptions
+    Given the admin is on the subscription page
+    When the admin requests subscriptions
+    Then the system returns the paginated subscriptions with formatted table data
+`);
+      const res = await request(app)
+        .get('/api/v1/subscriptions')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/subscriptions', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-SUBSCRIPTIONS-LIST', 'Admin fetches subscriptions list');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      if (res.body.data.length > 0) {
+        const item = res.body.data[0];
+        expect(item.transactionId).toBeDefined();
+        expect(item.plan).toBeDefined();
+      }
+    });
+
+    it('should search subscriptions by user email or transaction ID', async () => {
+      console.info(`
+📖 BDD SCENARIO: SEARCH SUBSCRIPTIONS
+Feature: Subscription Management
+  Scenario: Admin searches for a specific subscription
+    Given the admin wants to find a specific transaction
+    When the admin enters a search term (Applicable fields: User Email, Transaction ID)
+    Then the system returns the matching subscriptions
+`);
+      const res = await request(app)
+        .get('/api/v1/subscriptions?searchTerm=target_')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/subscriptions?searchTerm=target_', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { searchTerm: 'target_' } }, res.body, 'GET-ADMIN-SUBSCRIPTIONS-SEARCH', 'Admin searches subscriptions');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      // We expect the regular user to show up in search
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should filter subscriptions by package (pkg)', async () => {
+      console.info(`
+📖 BDD SCENARIO: FILTER SUBSCRIPTIONS
+Feature: Subscription Management
+  Scenario: Admin filters subscriptions by WEEKLY package
+    Given the admin wants to see only weekly subscribers
+    When the admin selects the weekly filter (Applicable pkg filters: weekly, monthly, yearly)
+    Then the system returns only subscriptions with weekly product IDs
+`);
+      const res = await request(app)
+        .get('/api/v1/subscriptions?pkg=weekly')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/subscriptions?pkg=weekly', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { pkg: 'weekly' } }, res.body, 'GET-ADMIN-SUBSCRIPTIONS-FILTER', 'Admin filters subscriptions by package');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      // We expect at least one weekly subscription (the regular user one)
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
     });
   });
+
 
   describe('7. Legal Pages Management Flow', () => {
     let targetSlug = 'e2e-privacy-policy';
@@ -588,10 +696,9 @@ Feature: Legal Pages
 `);
       const payload = {
         title: 'E2E Privacy Policy',
-        slug: targetSlug,
         content: '<p>This is a test privacy policy generated by E2E</p>'
       };
-      
+
       const res = await request(app)
         .post('/api/v1/legals')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -602,6 +709,27 @@ Feature: Legal Pages
       expect(res.status).toBe(StatusCodes.CREATED);
       expect(res.body.success).toBe(true);
       expect(res.body.data.slug).toBe(targetSlug);
+    });
+
+    it('should fetch all legal pages successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH ALL LEGAL PAGES
+Feature: Legal Pages
+  Scenario: Admin views all legal pages
+    Given legal pages exist in the system
+    When the admin requests the list of legal pages
+    Then the system returns an array of all legal documents
+`);
+      const res = await request(app)
+        .get('/api/v1/legals')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/legals', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-LEGALS-ALL', 'Admin fetches all legal pages');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
     });
 
     it('should fetch the created legal page by slug', async () => {
@@ -615,7 +743,7 @@ Feature: Legal Pages
 `);
       const res = await request(app).get(`/api/v1/legals/${targetSlug}`);
 
-      logApi('GET', `/api/v1/legals/${targetSlug}`, {}, res.body, 'GET-ADMIN-LEGALS-SLUG', 'Fetch legal page by slug');
+      logApi('GET', '/api/v1/legals/:slug', { params: { slug: targetSlug } }, res.body, 'GET-ADMIN-LEGALS-SLUG', 'Fetch legal page by slug');
 
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
@@ -637,15 +765,65 @@ Feature: Legal Pages
         .set('Authorization', `Bearer ${adminToken}`)
         .send(payload);
 
-      logApi('PATCH', `/api/v1/legals/${targetSlug}`, { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'PATCH-ADMIN-LEGALS', 'Admin updates a legal page');
+      logApi('PATCH', '/api/v1/legals/:slug', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, params: { slug: targetSlug }, body: payload }, res.body, 'PATCH-ADMIN-LEGALS', 'Admin updates a legal page');
 
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
       expect(res.body.data.title).toBe('Updated E2E Privacy Policy');
-      
+
       // Update the targetSlug since patching the title automatically changes the slug
       targetSlug = res.body.data.slug;
     });
+
+    it('should update only the title of the legal page', async () => {
+      console.info(`
+📖 BDD SCENARIO: UPDATE LEGAL PAGE TITLE ONLY
+Feature: Legal Pages
+  Scenario: Admin updates only the title of the privacy policy
+    Given the admin has selected a legal page
+    When the admin updates only the title
+    Then the system reflects the changes and generates a new slug
+`);
+      const payload = { title: 'Updated E2E Privacy Policy Title Only' };
+      const res = await request(app)
+        .patch(`/api/v1/legals/${targetSlug}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload);
+
+      logApi('PATCH', '/api/v1/legals/:slug', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, params: { slug: targetSlug }, body: payload }, res.body, 'PATCH-ADMIN-LEGALS-TITLE-ONLY', 'Admin updates only title of legal page');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.title).toBe('Updated E2E Privacy Policy Title Only');
+
+      // Update the targetSlug since patching the title automatically changes the slug
+      targetSlug = res.body.data.slug;
+    });
+
+    it('should update only the content of the legal page', async () => {
+      console.info(`
+📖 BDD SCENARIO: UPDATE LEGAL PAGE CONTENT ONLY
+Feature: Legal Pages
+  Scenario: Admin updates only the content of the privacy policy
+    Given the admin has selected a legal page
+    When the admin updates only the content
+    Then the system reflects the changes without changing the slug
+`);
+      // Simulate real frontend payload by sending the existing title along with the updated content
+      const payload = { title: 'Updated E2E Privacy Policy Title Only', content: '<p>Updated content only</p>' };
+      const res = await request(app)
+        .patch(`/api/v1/legals/${targetSlug}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload);
+
+      logApi('PATCH', '/api/v1/legals/:slug', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, params: { slug: targetSlug }, body: payload }, res.body, 'PATCH-ADMIN-LEGALS-CONTENT-ONLY', 'Admin updates only content of legal page');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.content).toBe('<p>Updated content only</p>');
+      expect(res.body.data.slug).toBe(targetSlug); // slug should not change
+    });
+
 
     it('should delete the legal page', async () => {
       console.info(`
@@ -660,34 +838,57 @@ Feature: Legal Pages
         .delete(`/api/v1/legals/${targetSlug}`)
         .set('Authorization', `Bearer ${adminToken}`);
 
-      logApi('DELETE', `/api/v1/legals/${targetSlug}`, { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'DELETE-ADMIN-LEGALS', 'Admin deletes a legal page');
+      logApi('DELETE', '/api/v1/legals/:slug', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, params: { slug: targetSlug } }, res.body, 'DELETE-ADMIN-LEGALS', 'Admin deletes a legal page');
 
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
     });
   });
 
-  describe('8. Revenues Page Flow', () => {
-    it('should fetch the unified revenues analytics and table data successfully', async () => {
+  describe('8. Settings Page Flow', () => {
+    it('should fetch the admin profile successfully', async () => {
       console.info(`
-📖 BDD SCENARIO: FETCH REVENUES DATA
-Feature: Revenues Management
-  Scenario: Admin views unified revenues metrics and transactions
-    Given the admin is on the revenues page
-    When the admin requests revenues data
-    Then the system returns the metrics and paginated transactions
+📖 BDD SCENARIO: FETCH ADMIN PROFILE
+Feature: Settings
+  Scenario: Admin views their own profile details
+    Given the admin is on the settings page
+    When the admin requests their profile information
+    Then the system returns the admin profile details
 `);
       const res = await request(app)
-        .get('/api/v1/admin/revenues')
+        .get('/api/v1/users/me')
         .set('Authorization', `Bearer ${adminToken}`);
 
-      logApi('GET', '/api/v1/admin/revenues', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-REVENUES', 'Admin fetches unified revenues data');
+      logApi('GET', '/api/v1/users/me', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-PROFILE', 'Admin fetches their own profile');
 
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.metrics.totalUsers.value).toBeDefined();
-      expect(res.body.data.metrics.totalRevenue.value).toBeDefined();
-      expect(Array.isArray(res.body.data.transactions.data)).toBe(true);
+      expect(res.body.data).toBeDefined();
+    });
+
+    it('should update the admin profile successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: UPDATE ADMIN PROFILE
+Feature: Settings
+  Scenario: Admin updates their own profile details
+    Given the admin is on the settings page
+    When the admin submits updated profile information
+    Then the system updates the admin profile
+    And returns the updated details
+`);
+      const dummyBuffer = Buffer.from('dummy image content');
+      const res = await request(app)
+        .patch('/api/v1/users/me')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .field('name', 'Super Admin Updated')
+        .attach('profileImage', dummyBuffer, 'profile.jpg');
+
+      logApi('PATCH', '/api/v1/users/me', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { name: 'Super Admin Updated', profileImage: '(binary)' } }, res.body, 'PATCH-ADMIN-PROFILE', 'Admin updates their own profile with image');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.name).toBe('Super Admin Updated');
+      expect(res.body.data.profileImage).toBeDefined();
     });
   });
 });

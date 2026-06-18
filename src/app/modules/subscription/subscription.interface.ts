@@ -33,7 +33,8 @@ export type SubscriptionEnvironmentType = 'sandbox' | 'production';
 
 export type ISubscription = {
   _id?: Types.ObjectId;
-  userId: Types.ObjectId;
+  userId?: Types.ObjectId;
+  guestId?: string;
   plan: SubscriptionPlanType;
   status: SubscriptionStatusType;
 
@@ -62,9 +63,10 @@ export type ISubscription = {
 };
 
 export type SubscriptionModel = {
-  findByUser(userId: Types.ObjectId): Promise<ISubscription | null>;
-  upsertForUser(
-    userId: Types.ObjectId,
+  findByUserOrGuest(userId?: Types.ObjectId, guestId?: string): Promise<ISubscription | null>;
+  upsertForUserOrGuest(
+    userId: Types.ObjectId | undefined,
+    guestId: string | undefined,
     payload: Partial<ISubscription>
   ): Promise<ISubscription>;
 } & Model<ISubscription>;

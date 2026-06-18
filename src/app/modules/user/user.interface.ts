@@ -4,26 +4,15 @@ import { USER_ROLES, USER_STATUS } from '../../../enums/user';
 export type DevicePlatform = 'ios' | 'android' | 'web';
 
 export type IDeviceToken = {
-  // Legacy raw FCM/APNs token. Pre-T1-4 rows only. New entries leave
-  // this empty and use `tokenHash` as the canonical lookup field.
   token?: string;
-  // HMAC-SHA256(rawToken, jwtSecret).hex — the canonical lookup field
-  // going forward. Never returned to clients.
   tokenHash?: string;
-  // Last 6 chars of the raw token for "ending in XYZA12" UI display.
-  // Safe to expose in API responses.
   tokenPrefix?: string;
   platform?: DevicePlatform;
   appVersion?: string;
   firstSeenAt?: Date;
   lastSeenAt?: Date;
-  // HMAC-SHA256(ip, jwtSecret).hex. Hashed so a DB leak does not expose
-  // user IPs. Never returned to clients.
   lastSeenIpHash?: string;
-  // Resolved city/country string for session-UI display.
   lastSeenCity?: string;
-  // Raw User-Agent header. Plain-stored because it's already self-
-  // disclosed on every request.
   userAgent?: string;
 };
 
@@ -33,10 +22,8 @@ export type DeviceSessionMetadata = {
 };
 
 export interface ILocation {
-  country: string;
-  city: string;
-  type: 'Point';
-  coordinates: [number, number]; // [longitude, latitude]
+  country?: string;
+  city?: string;
 }
 
 export interface IUser {
@@ -47,11 +34,8 @@ export interface IUser {
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
   dateOfBirth?: Date;
   profileImage?: string;
-  aboutMe?: string;
-  interests: string[];
   location?: ILocation;
   status: USER_STATUS;
-  rejectionReason?: string;
   isVerified: boolean;
   deviceTokens?: IDeviceToken[];
   googleId?: string;

@@ -1190,9 +1190,7 @@ Feature: Rewards System
 
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
-      expect(res.body.data.goldBalance).toBe(0);
-      expect(res.body.data.bonusBalance).toBe(0);
-      expect(res.body.data.transactions).toEqual([]);
+      expect(res.body.data.coinBalance).toBe(0);
     });
 
     describe('Daily Check-In Streak System', () => {
@@ -1246,6 +1244,16 @@ Feature: Daily Check-In Reward
         expect(res.body.data.coinsEarned).toBe(20);
         expect(res.body.data.streakDay).toBe(3);
         expect(res.body.data.nextStreakDay).toBe(4);
+
+        // Fetch wallet to see what it looks like after check-in
+        const walletRes = await request(app)
+          .get('/api/v1/rewards/wallet')
+          .set('Authorization', `Bearer ${userToken}`);
+
+        logApi('GET', '/api/v1/rewards/wallet', { headers: { Authorization: `Bearer ${userToken}` } }, walletRes.body, 'GET-WALLET-AFTER-CHECKIN', 'User views their wallet after daily check-in');
+
+        expect(walletRes.status).toBe(StatusCodes.OK);
+        expect(walletRes.body.success).toBe(true);
       });
 
       it('should block claiming twice on the same day (Scenario 02)', async () => {
@@ -1601,10 +1609,11 @@ Feature: Ad Rewards
     And the ad watch count is incremented
 `);
         const res = await request(app)
-          .post('/api/v1/rewards/claim/ad')
-          .set('Authorization', `Bearer ${userToken}`);
+          .post('/api/v1/rewards/claim/task')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ taskType: 'WATCH_AD' });
 
-        logApi('POST', '/api/v1/rewards/claim/ad', { headers: { Authorization: `Bearer <USER_TOKEN>` } }, res.body, 'POST-CLAIM-AD', 'User claims reward for watching an ad');
+        logApi('POST', '/api/v1/rewards/claim/task', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { taskType: 'WATCH_AD' } }, res.body, 'POST-CLAIM-AD', 'User claims reward for watching an ad');
 
         expect(res.status).toBe(StatusCodes.OK);
         expect(res.body.success).toBe(true);
@@ -1622,10 +1631,11 @@ Feature: Login Rewards
     And the login reward status is marked as claimed
 `);
         const res = await request(app)
-          .post('/api/v1/rewards/claim/login-reward')
-          .set('Authorization', `Bearer ${userToken}`);
+          .post('/api/v1/rewards/claim/task')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ taskType: 'LOGIN' });
 
-        logApi('POST', '/api/v1/rewards/claim/login-reward', { headers: { Authorization: `Bearer <USER_TOKEN>` } }, res.body, 'POST-CLAIM-LOGIN', 'User claims initial login reward');
+        logApi('POST', '/api/v1/rewards/claim/task', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { taskType: 'LOGIN' } }, res.body, 'POST-CLAIM-LOGIN', 'User claims initial login reward');
 
         expect(res.status).toBe(StatusCodes.OK);
         expect(res.body.success).toBe(true);
@@ -1643,10 +1653,11 @@ Feature: Notification Rewards
     And the notification reward status is marked as claimed
 `);
         const res = await request(app)
-          .post('/api/v1/rewards/claim/notification')
-          .set('Authorization', `Bearer ${userToken}`);
+          .post('/api/v1/rewards/claim/task')
+          .set('Authorization', `Bearer ${userToken}`)
+          .send({ taskType: 'NOTIFICATION' });
 
-        logApi('POST', '/api/v1/rewards/claim/notification', { headers: { Authorization: `Bearer <USER_TOKEN>` } }, res.body, 'POST-CLAIM-NOTIFICATION', 'User claims notification enable reward');
+        logApi('POST', '/api/v1/rewards/claim/task', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { taskType: 'NOTIFICATION' } }, res.body, 'POST-CLAIM-NOTIFICATION', 'User claims notification enable reward');
 
         expect(res.status).toBe(StatusCodes.OK);
         expect(res.body.success).toBe(true);
@@ -1663,11 +1674,11 @@ Feature: Social Rewards
     Then the user receives 20 coins
 `);
         const res = await request(app)
-          .post('/api/v1/rewards/claim/social')
+          .post('/api/v1/rewards/claim/task')
           .set('Authorization', `Bearer ${userToken}`)
-          .send({ platform: 'facebook' });
+          .send({ taskType: 'FACEBOOK' });
 
-        logApi('POST', '/api/v1/rewards/claim/social', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { platform: 'facebook' } }, res.body, 'POST-CLAIM-SOCIAL-FB', 'User claims Facebook follow reward');
+        logApi('POST', '/api/v1/rewards/claim/task', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { taskType: 'FACEBOOK' } }, res.body, 'POST-CLAIM-SOCIAL-FB', 'User claims Facebook follow reward');
 
         expect(res.status).toBe(StatusCodes.OK);
         expect(res.body.success).toBe(true);
@@ -1684,11 +1695,11 @@ Feature: Social Rewards
     Then the user receives 20 coins
 `);
         const res = await request(app)
-          .post('/api/v1/rewards/claim/social')
+          .post('/api/v1/rewards/claim/task')
           .set('Authorization', `Bearer ${userToken}`)
-          .send({ platform: 'instagram' });
+          .send({ taskType: 'INSTAGRAM' });
 
-        logApi('POST', '/api/v1/rewards/claim/social', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { platform: 'instagram' } }, res.body, 'POST-CLAIM-SOCIAL-IG', 'User claims Instagram follow reward');
+        logApi('POST', '/api/v1/rewards/claim/task', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { taskType: 'INSTAGRAM' } }, res.body, 'POST-CLAIM-SOCIAL-IG', 'User claims Instagram follow reward');
 
         expect(res.status).toBe(StatusCodes.OK);
         expect(res.body.success).toBe(true);
@@ -1705,11 +1716,11 @@ Feature: Social Rewards
     Then the user receives 20 coins
 `);
         const res = await request(app)
-          .post('/api/v1/rewards/claim/social')
+          .post('/api/v1/rewards/claim/task')
           .set('Authorization', `Bearer ${userToken}`)
-          .send({ platform: 'youtube' });
+          .send({ taskType: 'YOUTUBE' });
 
-        logApi('POST', '/api/v1/rewards/claim/social', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { platform: 'youtube' } }, res.body, 'POST-CLAIM-SOCIAL-YT', 'User claims YouTube follow reward');
+        logApi('POST', '/api/v1/rewards/claim/task', { headers: { Authorization: `Bearer <USER_TOKEN>` }, body: { taskType: 'YOUTUBE' } }, res.body, 'POST-CLAIM-SOCIAL-YT', 'User claims YouTube follow reward');
 
         expect(res.status).toBe(StatusCodes.OK);
         expect(res.body.success).toBe(true);

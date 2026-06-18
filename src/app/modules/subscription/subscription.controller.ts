@@ -8,8 +8,9 @@ import SubscriptionService from './subscription.service';
 
 export const getMySubscriptionController = catchAsync(
   async (req: Request, res: Response) => {
-    const { id } = req.user as JwtPayload;
-    const result = await SubscriptionService.getMySubscription(id);
+    const id = (req.user as JwtPayload | undefined)?.id;
+    const guestId = req.guestId;
+    const result = await SubscriptionService.getMySubscription(id, guestId);
     sendResponse(res, {
       success: true,
       statusCode: httpStatus.OK,
@@ -21,12 +22,14 @@ export const getMySubscriptionController = catchAsync(
 
 export const verifyApplePurchaseController = catchAsync(
   async (req: Request, res: Response) => {
-    const { id } = req.user as JwtPayload;
+    const id = (req.user as JwtPayload | undefined)?.id;
+    const guestId = req.guestId;
     const { signedTransactionInfo } = req.body as {
       signedTransactionInfo: string;
     };
     const result = await SubscriptionService.verifyApplePurchase(
       id,
+      guestId,
       signedTransactionInfo
     );
     sendResponse(res, {
@@ -70,13 +73,15 @@ export const appleWebhookController = catchAsync(
 
 export const verifyGooglePurchaseController = catchAsync(
   async (req: Request, res: Response) => {
-    const { id } = req.user as JwtPayload;
+    const id = (req.user as JwtPayload | undefined)?.id;
+    const guestId = req.guestId;
     const { purchaseToken, productId } = req.body as {
       purchaseToken: string;
       productId: string;
     };
     const result = await SubscriptionService.verifyGooglePurchase(
       id,
+      guestId,
       purchaseToken,
       productId
     );
@@ -111,8 +116,9 @@ export const googleWebhookController = catchAsync(
 
 export const chooseFreePlanController = catchAsync(
   async (req: Request, res: Response) => {
-    const { id } = req.user as JwtPayload;
-    const result = await SubscriptionService.setFreePlan(id);
+    const id = (req.user as JwtPayload | undefined)?.id;
+    const guestId = req.guestId;
+    const result = await SubscriptionService.setFreePlan(id, guestId);
     sendResponse(res, {
       success: true,
       statusCode: httpStatus.OK,
@@ -131,7 +137,8 @@ export const getAllSubscriptionsController = catchAsync(
       success: true,
       statusCode: httpStatus.OK,
       message: 'Subscriptions retrieved successfully',
-      data: result,
+      meta: result.meta,
+      data: result.data,
     });
   }
 );

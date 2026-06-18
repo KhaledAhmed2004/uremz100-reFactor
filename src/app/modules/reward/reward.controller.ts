@@ -2,11 +2,18 @@ import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
+import ApiError from '../../../errors/ApiError';
 import { RewardService } from './reward.service';
 
+const getOwnerQuery = (req: Request) => {
+  if (req.user?.id) return { user: req.user.id };
+  if (req.guestId) return { guestId: req.guestId };
+  throw new ApiError(StatusCodes.UNAUTHORIZED, 'Unauthorized access');
+};
+
 const getWalletDetails = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const result = await RewardService.getWalletDetails(userId);
+  const ownerQuery = getOwnerQuery(req);
+  const result = await RewardService.getWalletDetails(ownerQuery);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -17,9 +24,9 @@ const getWalletDetails = catchAsync(async (req: Request, res: Response) => {
 });
 
 const claimWatchTimeReward = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
+  const ownerQuery = getOwnerQuery(req);
   const { videoDuration } = req.body;
-  const result = await RewardService.claimWatchTimeReward(userId, videoDuration);
+  const result = await RewardService.claimWatchTimeReward(ownerQuery, videoDuration);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -30,9 +37,9 @@ const claimWatchTimeReward = catchAsync(async (req: Request, res: Response) => {
 });
 
 const claimFreshWatchTimeReward = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
+  const ownerQuery = getOwnerQuery(req);
   const { minutes } = req.body;
-  const result = await RewardService.claimFreshWatchTimeReward(userId, minutes);
+  const result = await RewardService.claimFreshWatchTimeReward(ownerQuery, minutes);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -43,8 +50,8 @@ const claimFreshWatchTimeReward = catchAsync(async (req: Request, res: Response)
 });
 
 const claimDailyCheckIn = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const result = await RewardService.claimDailyCheckIn(userId);
+  const ownerQuery = getOwnerQuery(req);
+  const result = await RewardService.claimDailyCheckIn(ownerQuery);
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
@@ -54,75 +61,40 @@ const claimDailyCheckIn = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const claimWatchAdReward = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const result = await RewardService.claimWatchAdReward(userId);
+const claimTaskReward = catchAsync(async (req: Request, res: Response) => {
+  const ownerQuery = getOwnerQuery(req);
+  const { taskType } = req.body;
+
+  let result;
+  switch (taskType) {
+    case 'LOGIN':
+      result = await RewardService.claimLoginReward(ownerQuery);
+      break;
+    case 'NOTIFICATION':
+      result = await RewardService.claimNotificationReward(ownerQuery);
+      break;
+    case 'FACEBOOK':
+    case 'INSTAGRAM':
+    case 'YOUTUBE':
+      result = await RewardService.claimSocialReward(ownerQuery, taskType.toLowerCase());
+      break;
+    case 'BIND_EMAIL':
+      result = await RewardService.claimBindEmailReward(ownerQuery);
+      break;
+    case 'PROFILE_COMPLETION':
+      result = await RewardService.claimProfileCompletionReward(ownerQuery);
+      break;
+    case 'WATCH_AD':
+      result = await RewardService.claimWatchAdReward(ownerQuery);
+      break;
+    default:
+      throw new ApiError(StatusCodes.BAD_REQUEST, 'Invalid task type');
+  }
 
   sendResponse(res, {
     statusCode: StatusCodes.OK,
     success: true,
-    message: 'Ad reward claimed successfully',
-    data: result,
-  });
-});
-
-const claimNotificationReward = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const result = await RewardService.claimNotificationReward(userId);
-
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Notification reward claimed successfully',
-    data: result,
-  });
-});
-
-const claimSocialReward = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const { platform } = req.body; // 'facebook' or 'instagram'
-  const result = await RewardService.claimSocialReward(userId, platform);
-
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: `Social reward claimed successfully for ${platform}`,
-    data: result,
-  });
-});
-
-const claimBindEmailReward = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const result = await RewardService.claimBindEmailReward(userId);
-
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Bind email reward claimed successfully',
-    data: result,
-  });
-});
-
-const claimLoginReward = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const result = await RewardService.claimLoginReward(userId);
-
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Login reward claimed successfully',
-    data: result,
-  });
-});
-
-const claimProfileCompletionReward = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user.id;
-  const result = await RewardService.claimProfileCompletionReward(userId);
-
-  sendResponse(res, {
-    statusCode: StatusCodes.OK,
-    success: true,
-    message: 'Profile completion reward claimed successfully',
+    message: `${taskType} reward claimed successfully`,
     data: result,
   });
 });
@@ -132,10 +104,5 @@ export const RewardController = {
   claimWatchTimeReward,
   claimFreshWatchTimeReward,
   claimDailyCheckIn,
-  claimWatchAdReward,
-  claimNotificationReward,
-  claimSocialReward,
-  claimBindEmailReward,
-  claimLoginReward,
-  claimProfileCompletionReward,
+  claimTaskReward,
 };

@@ -365,7 +365,10 @@ const processValidatedGoogleNotification = async (
     lastGoogleNotificationAt: new Date().toISOString(),
   };
 
-  await SubscriptionModel.upsertForUser(existing.userId, {
+  await SubscriptionModel.upsertForUserOrGuest(
+    existing.userId,
+    existing.guestId,
+    {
     ...updates,
     googlePurchaseToken: decoded.purchaseToken, // Migrate to latest token on upgrade
     googleOrderId: decoded.orderId || existing.googleOrderId,

@@ -1,5 +1,6 @@
 import express from 'express';
 import auth from '../../middlewares/auth';
+import guestOrAuth from '../../middlewares/guestOrAuth';
 import validateRequest from '../../middlewares/validateRequest';
 import { USER_ROLES } from '../../../enums/user';
 import SubscriptionController from './subscription.controller';
@@ -12,7 +13,7 @@ const router = express.Router();
 // নিজের সাবস্ক্রিপশন স্ট্যাটাস/প্ল্যান দেখায়
 router.get(
   '/me',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  guestOrAuth,
   SubscriptionController.getMySubscriptionController
 );
 
@@ -21,7 +22,7 @@ router.get(
 // DB-তে সাবস্ক্রিপশন তৈরি/আপডেট করে।
 router.post(
   '/apple/verify',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  guestOrAuth,
   rateLimitMiddleware({
     windowMs: 60_000,
     max: 30,
@@ -46,7 +47,7 @@ router.post(
 // upserts the subscription record.
 router.post(
   '/google/verify',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  guestOrAuth,
   rateLimitMiddleware({
     windowMs: 60_000,
     max: 30,
@@ -70,20 +71,20 @@ router.post(
 // লোকালি Free প্ল্যানে সুইচ করে
 router.post(
   '/choose/free',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  guestOrAuth,
   SubscriptionController.chooseFreePlanController
 );
 
 // --- Admin Routes ---
 
 router.get(
-  '/admin',
+  '/',
   auth(USER_ROLES.SUPER_ADMIN),
   SubscriptionController.getAllSubscriptionsController
 );
 
 router.get(
-  '/admin/analytics',
+  '/stats',
   auth(USER_ROLES.SUPER_ADMIN),
   SubscriptionController.getSubscriptionAnalyticsController
 );

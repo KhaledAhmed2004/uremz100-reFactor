@@ -7,7 +7,8 @@ export interface IBonusLedger {
 }
 
 export interface IWallet {
-  user: Types.ObjectId;
+  user?: Types.ObjectId;
+  guestId?: string;
   goldBalance: number;
   bonusLedger: IBonusLedger[];
 }
@@ -53,7 +54,8 @@ export interface ITransaction {
 export type TransactionModel = Model<ITransaction, Record<string, unknown>>;
 
 export interface IUserRewardProgress {
-  user: Types.ObjectId;
+  user?: Types.ObjectId;
+  guestId?: string;
   checkInStreak: {
     currentDay: number;
     lastClaimDate?: Date;

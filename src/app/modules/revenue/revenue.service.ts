@@ -5,7 +5,7 @@ import { Subscription } from '../subscription/subscription.model';
 import { SUBSCRIPTION_STATUS } from '../subscription/subscription.interface';
 import QueryBuilder from '../../builder/QueryBuilder';
 
-export const getRevenuesData = async (query: Record<string, unknown>) => {
+export const getRevenueStats = async () => {
   const now = new Date();
   
   // Start of current month
@@ -69,6 +69,10 @@ export const getRevenuesData = async (query: Record<string, unknown>) => {
     }
   };
 
+  return metrics;
+};
+
+export const getRevenueTransactions = async (query: Record<string, unknown>) => {
   // 5. Transactions Table with QueryBuilder
   const revenueQuery = new QueryBuilder(
     RevenueTransaction.find().populate('userId', 'email name'),
@@ -116,14 +120,12 @@ export const getRevenuesData = async (query: Record<string, unknown>) => {
   }
 
   return {
-    metrics,
-    transactions: {
-      meta: finalMeta,
-      data: finalTransactions
-    }
+    meta: finalMeta,
+    data: finalTransactions
   };
 };
 
 export const RevenueService = {
-  getRevenuesData
+  getRevenueStats,
+  getRevenueTransactions
 };
