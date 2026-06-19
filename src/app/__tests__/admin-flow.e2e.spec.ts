@@ -58,6 +58,7 @@ beforeAll(async () => {
     releaseYear: 2026,
     status: 'PUBLISHED',
     planStatus: ['FREE'],
+    posterUrl: 'https://picsum.photos/seed/movie8/1920/1080',
     videoUrl: 'http://video.com/new_movie.mp4',
     views: 0,
     isPopularSeries: false,
@@ -493,6 +494,165 @@ Feature: Content Management
     });
   });
 
+  describe('4.1. Movies Management Flow', () => {
+    it('should fetch the overall movies statistics successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH MOVIES STATS
+Feature: Movies Management
+  Scenario: Admin views overall movies statistics
+    Given the admin is on the Movies Management page
+    When the admin requests movies statistics
+    Then the system returns metrics for all movies
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/movies/stats')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies/stats', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-MOVIES-STATS', 'Admin fetches movies stats');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+    });
+
+    it('should fetch the paginated list of movies successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH ADMIN MOVIES LIST
+Feature: Movies Management
+  Scenario: Admin views the list of movies
+    Given the admin is on the Movies Management page
+    When the admin requests the list of movies with pagination parameters
+    Then the system returns a paginated list of movies
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/movies?page=1&limit=10')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies?page=1&limit=10', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-MOVIES-LIST', 'Admin fetches paginated movies list');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.meta).toBeDefined();
+    });
+
+    it('should search for movies by name', async () => {
+      console.info(`
+📖 BDD SCENARIO: SEARCH MOVIES
+Feature: Movies Management
+  Scenario: Admin searches for a movie by name
+    Given the admin is on the Movies Management page
+    When the admin enters a movie name in the search bar
+    Then the system returns the matching movies
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/movies?searchTerm=Brand')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { searchTerm: 'Brand' } }, res.body, 'GET-ADMIN-MOVIES-SEARCH', 'Admin searches for a movie by name');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should filter movies by status', async () => {
+      console.info(`
+📖 BDD SCENARIO: FILTER MOVIES BY STATUS
+Feature: Movies Management
+  Scenario: Admin filters movies by status
+    Given the admin is on the Movies Management page
+    When the admin selects a status filter (PUBLISHED or DRAFT)
+    Then the system returns movies matching the exact status
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/movies?status=PUBLISHED')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { status: 'PUBLISHED' } }, res.body, 'GET-ADMIN-MOVIES-FILTER-STATUS', 'Admin filters movies by status');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('should filter movies by availability (planStatus)', async () => {
+      console.info(`
+📖 BDD SCENARIO: FILTER MOVIES BY AVAILABILITY
+Feature: Movies Management
+  Scenario: Admin filters movies by subscription plan
+    Given the admin is on the Movies Management page
+    When the admin selects an availability filter (FREE, WEEKLY, MONTHLY, YEARLY, ALL)
+    Then the system returns movies matching the availability plan
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/movies?planStatus=FREE')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { planStatus: 'FREE' } }, res.body, 'GET-ADMIN-MOVIES-FILTER-PLAN', 'Admin filters movies by availability plan');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('should delete a movie successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: DELETE MOVIE
+Feature: Movies Management
+  Scenario: Admin deletes a single movie
+    Given the admin has a movie to delete
+    When the admin requests to delete the movie
+    Then the system permanently removes the movie
+`);
+      // First, create a dummy movie to delete
+      const dummyMovie = await Content.create({
+        title: 'Movie To Delete',
+        description: 'This movie will be deleted in the E2E test.',
+        type: 'MOVIE',
+        duration: 120,
+        releaseYear: 2026,
+        status: 'PUBLISHED',
+        planStatus: ['FREE'],
+        videoUrl: 'http://video.com/delete_me.mp4',
+        views: 0,
+      });
+
+      const res = await request(app)
+        .delete(`/api/v1/contents/movies/${dummyMovie._id}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('DELETE', '/api/v1/contents/movies/:movieId', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'DELETE-ADMIN-MOVIE', 'Admin deletes a single movie');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('4.2. Series Management Flow', () => {
+    it('should fetch the overall series statistics successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH SERIES STATS
+Feature: Series Management
+  Scenario: Admin views overall series statistics
+    Given the admin is on the Series Management page
+    When the admin requests series statistics
+    Then the system returns metrics for all series
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/series/stats')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/series/stats', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-SERIES-STATS', 'Admin fetches series stats');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+    });
+  });
+
   describe('5. Genres Management Flow', () => {
     let targetGenreId: string;
 
@@ -888,6 +1048,33 @@ Feature: Settings
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
       expect(res.body.data.name).toBe('Super Admin Updated');
+      expect(res.body.data.profileImage).toBeDefined();
+    });
+
+    it('should update only the profile image successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: UPDATE ADMIN PROFILE IMAGE ONLY
+Feature: Settings
+  Scenario: Admin updates only their profile picture
+    Given the admin is on the settings page
+    When the admin uploads a new profile image
+    Then the system updates the profile image without affecting other fields
+`);
+      // Simulating a real frontend file upload flow using multipart/form-data
+      const imageBuffer = Buffer.from('fake image content for testing');
+      
+      const res = await request(app)
+        .patch('/api/v1/users/me')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .attach('profileImage', imageBuffer, {
+          filename: 'avatar.png',
+          contentType: 'image/png'
+        });
+
+      logApi('PATCH', '/api/v1/users/me', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { profileImage: '(binary PNG)' } }, res.body, 'PATCH-ADMIN-PROFILE-IMAGE-ONLY', 'Admin updates only their profile image');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
       expect(res.body.data.profileImage).toBeDefined();
     });
   });

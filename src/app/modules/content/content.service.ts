@@ -4,6 +4,7 @@ import config from '../../../config';
 import httpStatus from 'http-status';
 import { Types } from 'mongoose';
 import QueryBuilder from '../../builder/QueryBuilder';
+import AggregationBuilder from '../../builder/AggregationBuilder';
 import ApiError from '../../../errors/ApiError';
 import { Content } from './content.model';
 import { FavoriteContent } from '../favorite-content/favorite-content.model';
@@ -678,12 +679,240 @@ const deleteSeasonFromDB = async (id: string) => {
 };
 
 
+const getMoviesStats = async () => {
+  const contentBuilder = new AggregationBuilder(Content as any);
+
+  const formatMetric = (stat: any) => {
+    const growthVal = stat?.growth || 0;
+    return {
+      value: Number(stat?.total || 0),
+      changePct: Number(Math.abs(Number(growthVal)).toFixed(2)),
+      direction:
+        stat?.growthType === 'increase'
+          ? ('up' as const)
+          : stat?.growthType === 'decrease'
+            ? ('down' as const)
+            : ('neutral' as const),
+    };
+  };
+
+  const movieGrowth = await contentBuilder.calculateGrowth({
+    filter: { type: 'MOVIE' },
+    period: 'month',
+  });
+
+  const viewsGrowth = await contentBuilder.calculateGrowth({
+    filter: { type: 'MOVIE' },
+    sumField: 'views',
+    period: 'month',
+  });
+
+  // Calculate Likes Growth manually since it requires a join
+  const getLikesStats = async () => {
+    const now = new Date();
+    const startThis = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endLast = new Date(now.getFullYear(), now.getMonth(), 0);
+    endLast.setHours(23, 59, 59, 999);
+
+    const getLikesCount = async (dateFilter?: any) => {
+      const pipeline: any[] = [
+        {
+          $lookup: {
+            from: 'contents',
+            localField: 'contentId',
+            foreignField: '_id',
+            as: 'content',
+          },
+        },
+        { $unwind: '$content' },
+        { $match: { 'content.type': 'MOVIE' } },
+      ];
+
+      if (dateFilter) {
+        pipeline.push({ $match: { createdAt: dateFilter } });
+      }
+
+      pipeline.push({ $group: { _id: null, total: { $sum: 1 } } });
+      const result = await FavoriteContent.aggregate(pipeline);
+      return result[0]?.total || 0;
+    };
+
+    const [thisPeriod, lastPeriod, total] = await Promise.all([
+      getLikesCount({ $gte: startThis }),
+      getLikesCount({ $gte: startLast, $lte: endLast }),
+      getLikesCount(),
+    ]);
+
+    let growth = 0;
+    let growthType: 'increase' | 'decrease' | 'no_change' = 'no_change';
+
+    if (lastPeriod > 0) {
+      growth = ((thisPeriod - lastPeriod) / lastPeriod) * 100;
+      growthType = growth > 0 ? 'increase' : growth < 0 ? 'decrease' : 'no_change';
+    } else if (thisPeriod > 0) {
+      growth = 100;
+      growthType = 'increase';
+    }
+
+    return { total, growth, growthType };
+  };
+
+  const likesGrowth = await getLikesStats();
+
+  // CTR (Click-Through Rate) - Since there is no impression data, we calculate an Engagement Rate (Likes / Views)
+  const calculateRatio = (likes: number, views: number) => (views > 0 ? (likes / views) * 100 : 0);
+  
+  const currentCtr = calculateRatio(likesGrowth.thisPeriodCount || 0, viewsGrowth.thisPeriodCount || 0);
+  const previousCtr = calculateRatio(likesGrowth.lastPeriodCount || 0, viewsGrowth.lastPeriodCount || 0);
+  
+  const ctrValue = calculateRatio(likesGrowth.total, viewsGrowth.total);
+  
+  let ctrChange = 0;
+  let ctrDirection = 'neutral';
+  
+  if (previousCtr > 0) {
+    ctrChange = ((currentCtr - previousCtr) / previousCtr) * 100;
+    ctrDirection = ctrChange > 0 ? 'up' : ctrChange < 0 ? 'down' : 'neutral';
+  } else if (currentCtr > 0) {
+    ctrChange = 100;
+    ctrDirection = 'up';
+  }
+
+  return {
+    meta: { comparisonPeriod: 'month' },
+    totalMovies: formatMetric(movieGrowth),
+    totalLikes: formatMetric(likesGrowth),
+    ctr: {
+      value: Number(ctrValue || 0),
+      changePct: Number(Math.abs(Number(ctrChange || 0)).toFixed(2)),
+      direction: ctrDirection as 'up' | 'down' | 'neutral',
+    },
+    totalViews: formatMetric(viewsGrowth),
+  };
+};
+
+const getSeriesStats = async () => {
+  const contentBuilder = new AggregationBuilder(Content as any);
+
+  const formatMetric = (stat: any) => {
+    const growthVal = stat?.growth || 0;
+    return {
+      value: Number(stat?.total || 0),
+      changePct: Number(Math.abs(Number(growthVal)).toFixed(2)),
+      direction:
+        stat?.growthType === 'increase'
+          ? ('up' as const)
+          : stat?.growthType === 'decrease'
+            ? ('down' as const)
+            : ('neutral' as const),
+    };
+  };
+
+  const seriesGrowth = await contentBuilder.calculateGrowth({
+    filter: { type: 'SERIES' },
+    period: 'month',
+  });
+
+  const viewsGrowth = await contentBuilder.calculateGrowth({
+    filter: { type: 'SERIES' },
+    sumField: 'views',
+    period: 'month',
+  });
+
+  // Calculate Likes Growth manually since it requires a join
+  const getLikesStats = async () => {
+    const now = new Date();
+    const startThis = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endLast = new Date(now.getFullYear(), now.getMonth(), 0);
+    endLast.setHours(23, 59, 59, 999);
+
+    const getLikesCount = async (dateFilter?: any) => {
+      const pipeline: any[] = [
+        {
+          $lookup: {
+            from: 'contents',
+            localField: 'contentId',
+            foreignField: '_id',
+            as: 'content',
+          },
+        },
+        { $unwind: '$content' },
+        { $match: { 'content.type': 'SERIES' } },
+      ];
+
+      if (dateFilter) {
+        pipeline.push({ $match: { createdAt: dateFilter } });
+      }
+
+      pipeline.push({ $group: { _id: null, total: { $sum: 1 } } });
+      const result = await FavoriteContent.aggregate(pipeline);
+      return result[0]?.total || 0;
+    };
+
+    const [thisPeriod, lastPeriod, total] = await Promise.all([
+      getLikesCount({ $gte: startThis }),
+      getLikesCount({ $gte: startLast, $lte: endLast }),
+      getLikesCount(),
+    ]);
+
+    let growth = 0;
+    let growthType: 'increase' | 'decrease' | 'no_change' = 'no_change';
+
+    if (lastPeriod > 0) {
+      growth = ((thisPeriod - lastPeriod) / lastPeriod) * 100;
+      growthType = growth > 0 ? 'increase' : growth < 0 ? 'decrease' : 'no_change';
+    } else if (thisPeriod > 0) {
+      growth = 100;
+      growthType = 'increase';
+    }
+
+    return { total, growth, growthType };
+  };
+
+  const likesGrowth = await getLikesStats();
+
+  // CTR (Click-Through Rate) - Since there is no impression data, we calculate an Engagement Rate (Likes / Views)
+  const calculateRatio = (likes: number, views: number) => (views > 0 ? (likes / views) * 100 : 0);
+  
+  const currentCtr = calculateRatio(likesGrowth.thisPeriodCount || 0, viewsGrowth.thisPeriodCount || 0);
+  const previousCtr = calculateRatio(likesGrowth.lastPeriodCount || 0, viewsGrowth.lastPeriodCount || 0);
+  
+  const ctrValue = calculateRatio(likesGrowth.total, viewsGrowth.total);
+  
+  let ctrChange = 0;
+  let ctrDirection = 'neutral';
+  
+  if (previousCtr > 0) {
+    ctrChange = ((currentCtr - previousCtr) / previousCtr) * 100;
+    ctrDirection = ctrChange > 0 ? 'up' : ctrChange < 0 ? 'down' : 'neutral';
+  } else if (currentCtr > 0) {
+    ctrChange = 100;
+    ctrDirection = 'up';
+  }
+
+  return {
+    meta: { comparisonPeriod: 'month' },
+    totalSeries: formatMetric(seriesGrowth),
+    totalLikes: formatMetric(likesGrowth),
+    ctr: {
+      value: Number(ctrValue || 0),
+      changePct: Number(Math.abs(Number(ctrChange || 0)).toFixed(2)),
+      direction: ctrDirection as 'up' | 'down' | 'neutral',
+    },
+    totalViews: formatMetric(viewsGrowth),
+  };
+};
+
 export const ContentService = {
   searchContentFromDB,
   favoriteContentInDB,
   unfavoriteContentFromDB,
   getBestMoviesFromDB,
   getComingSoonContentFromDB,
+  getMoviesStats,
+  getSeriesStats,
   getAdminMoviesList: getAdminMoviesList,
   getAdminSeriesList: getAdminSeriesList,
   getSeriesDetailsFromDB: getSeriesDetailsFromDB,

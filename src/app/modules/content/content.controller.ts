@@ -67,6 +67,26 @@ const getComingSoonContent = catchAsync(async (req: Request, res: Response) => {
 });
 
 
+const getMoviesStats = catchAsync(async (req: Request, res: Response) => {
+  const result = await ContentService.getMoviesStats();
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Movies stats retrieved successfully',
+    data: result,
+  });
+});
+
+const getSeriesStats = catchAsync(async (req: Request, res: Response) => {
+  const result = await ContentService.getSeriesStats();
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Series stats retrieved successfully',
+    data: result,
+  });
+});
+
 const getAdminMovies = catchAsync(async (req: Request, res: Response) => {
   const result = await ContentService.getAdminMoviesList(req.query);
   sendResponse(res, {
@@ -436,6 +456,8 @@ export const ContentController = {
   unfavoriteContent,
   getBestMovies,
   getComingSoonContent,
+  getMoviesStats,
+  getSeriesStats,
   getAdminMovies: getAdminMovies,
   getAdminSeries: getAdminSeries,
   getSeriesDetails: getSeriesDetails,

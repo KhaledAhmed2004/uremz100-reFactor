@@ -53,6 +53,12 @@ router.get(
 );
 
 // Movies Management
+router.get(
+  '/movies/stats',
+  auth(USER_ROLES.SUPER_ADMIN),
+  ContentController.getMoviesStats,
+);
+
 router.post(
   '/movies',
   auth(USER_ROLES.SUPER_ADMIN),
@@ -96,6 +102,12 @@ router.patch(
 
 
 // Series Management
+router.get(
+  '/series/stats',
+  auth(USER_ROLES.SUPER_ADMIN),
+  ContentController.getSeriesStats,
+);
+
 router.get(
   '/series',
   auth(USER_ROLES.SUPER_ADMIN),

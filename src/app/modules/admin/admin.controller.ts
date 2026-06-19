@@ -52,25 +52,6 @@ const getWatchlistStatus = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const getMoviesStats = catchAsync(async (req: Request, res: Response) => {
-  const result = await AdminService.getMoviesStats();
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: 'Movies stats retrieved successfully',
-    data: result,
-  });
-});
-
-const getSeriesStats = catchAsync(async (req: Request, res: Response) => {
-  const result = await AdminService.getSeriesStats();
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: 'Series stats retrieved successfully',
-    data: result,
-  });
-});
 
 const getSubscriptionsStats = catchAsync(async (req: Request, res: Response) => {
   const result = await AdminService.getSubscriptionsStats();
@@ -219,8 +200,6 @@ export const AdminController = {
   getDashboardStats,
   getVisitorAnalytics,
   getWatchlistStatus,
-  getMoviesStats,
-  getSeriesStats,
   getSubscriptionsStats,
   getAdminSubscriptions,
   getRevenueStats,
