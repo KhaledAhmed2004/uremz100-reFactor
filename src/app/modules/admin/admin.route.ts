@@ -102,12 +102,6 @@ router.get(
   AdminController.getSubscriptionsStats,
 );
 
-router.get(
-  '/movies/:movieId/revenue',
-  auth(USER_ROLES.SUPER_ADMIN),
-  AdminController.getMovieAnalyticsRevenue,
-);
-
 router.patch(
   '/content/:id/boost',
   auth(USER_ROLES.SUPER_ADMIN),
@@ -119,6 +113,5 @@ router.get(
   auth(USER_ROLES.SUPER_ADMIN),
   AdminController.getAdminSubscriptions,
 );
-
 
 export const AdminRoutes = router;

@@ -82,7 +82,7 @@ function createAuthUser() {
                 releaseYear: 2010,
                 duration: 148,
                 videoUrl: 'http://video.com',
-                poster: 'http://poster.jpg'
+                posterUrl: 'http://poster.jpg'
             });
             yield content_model_1.Content.create({
                 title: 'Interstellar',
@@ -125,10 +125,13 @@ function createAuthUser() {
         }));
     });
     (0, vitest_1.describe)('Get Coming Soon Content (GET /api/v1/contents/coming-soon)', () => {
-        (0, vitest_1.it)('successfully retrieves upcoming content marked as isRecent', () => __awaiter(void 0, void 0, void 0, function* () {
+        (0, vitest_1.it)('successfully retrieves upcoming content based on future release date', () => __awaiter(void 0, void 0, void 0, function* () {
             const { token } = yield createAuthUser(user_1.USER_ROLES.SUPER_ADMIN);
-            yield content_model_1.Content.create({ title: 'Old Movie', description: 'desc', releaseYear: 2020, duration: 120, videoUrl: 'url', type: 'MOVIE', isRecent: false, status: 'PUBLISHED' });
-            yield content_model_1.Content.create({ title: 'Upcoming Movie', description: 'desc', releaseYear: 2020, duration: 120, videoUrl: 'url', type: 'MOVIE', isRecent: true, status: 'PUBLISHED' });
+            const now = new Date();
+            const nextYear = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+            const lastYear = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+            yield content_model_1.Content.create({ title: 'Old Movie', description: 'desc', releaseYear: 2020, duration: 120, videoUrl: 'url', type: 'MOVIE', releaseDate: lastYear, status: 'PUBLISHED' });
+            yield content_model_1.Content.create({ title: 'Upcoming Movie', description: 'desc', releaseYear: 2020, duration: 120, videoUrl: 'url', type: 'MOVIE', releaseDate: nextYear, status: 'PUBLISHED' });
             const response = yield (0, supertest_1.default)(app_1.default)
                 .get('/api/v1/contents/coming-soon')
                 .set('Authorization', `Bearer ${token}`);
@@ -280,7 +283,7 @@ function createAuthUser() {
             const payload = {
                 title: 'Season 1',
                 seasonNumber: 1,
-                poster: 'http://poster.jpg'
+                posterUrl: 'http://poster.jpg'
             };
             const response = yield (0, supertest_1.default)(app_1.default)
                 .post(`/api/v1/contents/series/${series._id}/seasons`)
@@ -294,7 +297,7 @@ function createAuthUser() {
         (0, vitest_1.it)('successfully fetches seasons (GET /api/v1/contents/series/:seriesId/seasons)', () => __awaiter(void 0, void 0, void 0, function* () {
             const { token } = yield createAuthUser(user_1.USER_ROLES.SUPER_ADMIN);
             const series = yield content_model_1.Content.create({ title: 'Series', description: 'desc', duration: 0, releaseYear: 2024, type: 'SERIES' });
-            yield season_model_1.Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, poster: 'url' });
+            yield season_model_1.Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, posterUrl: 'url' });
             const response = yield (0, supertest_1.default)(app_1.default)
                 .get(`/api/v1/contents/series/${series._id}/seasons`)
                 .set('Authorization', `Bearer ${token}`);
@@ -309,12 +312,12 @@ function createAuthUser() {
         (0, vitest_1.it)('successfully creates an episode (POST /api/v1/contents/series/:seriesId/episodes)', () => __awaiter(void 0, void 0, void 0, function* () {
             const { token } = yield createAuthUser(user_1.USER_ROLES.SUPER_ADMIN);
             const series = yield content_model_1.Content.create({ title: 'Series', description: 'desc', duration: 0, releaseYear: 2024, type: 'SERIES' });
-            const season = yield season_model_1.Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, poster: 'url' });
+            const season = yield season_model_1.Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, posterUrl: 'url' });
             const payload = {
                 title: 'Episode 1',
                 description: 'First episode',
                 videoUrl: 'http://video.com',
-                thumbnail: 'http://thumb.jpg',
+                thumbnailUrl: 'http://thumb.jpg',
                 duration: 45,
                 releaseDate: new Date(),
                 seasonId: season._id.toString(),
@@ -334,12 +337,12 @@ function createAuthUser() {
         (0, vitest_1.it)('successfully fetches episodes (GET /api/v1/contents/series/:seriesId/episodes)', () => __awaiter(void 0, void 0, void 0, function* () {
             const { token } = yield createAuthUser(user_1.USER_ROLES.SUPER_ADMIN);
             const series = yield content_model_1.Content.create({ title: 'Series', description: 'desc', duration: 0, releaseYear: 2024, type: 'SERIES' });
-            const season = yield season_model_1.Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, poster: 'url' });
+            const season = yield season_model_1.Season.create({ title: 'Season 1', seasonNumber: 1, seriesId: series._id, posterUrl: 'url' });
             yield episode_model_1.Episode.create({
                 title: 'Episode 1',
                 description: 'desc',
                 videoUrl: 'url',
-                thumbnail: 'url',
+                thumbnailUrl: 'url',
                 duration: 45,
                 releaseDate: new Date(),
                 seriesId: series._id,
@@ -401,7 +404,8 @@ function createAuthUser() {
                 parts: [{ ETag: 'etag1', PartNumber: 1 }]
             };
             vitest_1.vi.spyOn(content_service_1.ContentService, 'completeMultipartUpload').mockResolvedValueOnce({
-                location: 'http://bunnycdn.url/movies/test.mp4'
+                location: 'http://bunnycdn.url/movies/test.mp4',
+                key: 'movies/test.mp4'
             });
             const response = yield (0, supertest_1.default)(app_1.default)
                 .post('/api/v1/contents/upload/complete')

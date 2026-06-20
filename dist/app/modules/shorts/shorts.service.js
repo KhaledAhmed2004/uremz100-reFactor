@@ -46,7 +46,7 @@ const getShortsFeed = (cursor_1, ...args_1) => __awaiter(void 0, [cursor_1, ...a
             title: doc.title,
             description: doc.description,
             videoUrl: isTrailer ? doc.trailerUrl : doc.videoUrl,
-            poster: doc.poster,
+            posterUrl: doc.posterUrl,
             type: isTrailer ? 'TRAILER' : 'FREE_CONTENT',
         };
     });
@@ -61,7 +61,7 @@ const getShortsFeed = (cursor_1, ...args_1) => __awaiter(void 0, [cursor_1, ...a
     };
 });
 const incrementShortViewInDB = (contentId) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield content_model_1.Content.findByIdAndUpdate(contentId, { $inc: { views: 1 } }, { new: true, select: 'title views' });
+    const result = yield content_model_1.Content.findByIdAndUpdate(contentId, { $inc: { views: 1, dailyViews: 1, weeklyViews: 1 } }, { new: true, select: 'title views' });
     return result;
 });
 exports.ShortsService = {

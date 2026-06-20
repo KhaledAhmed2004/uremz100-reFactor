@@ -4,6 +4,7 @@ import { USER_ROLES } from '../../../enums/user';
 import { rateLimitMiddleware } from '../../middlewares/rateLimit';
 import { ContentController } from './content.controller';
 import fileUploadHandler from '../../middlewares/fileUploadHandler';
+import guestOrAuth from '../../middlewares/guestOrAuth';
 
 const router = express.Router();
 const upload = fileUploadHandler();
@@ -11,7 +12,7 @@ const upload = fileUploadHandler();
 // Search and Common
 router.get(
   '/search',
-  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
+  guestOrAuth,
   rateLimitMiddleware({
     windowMs: 60_000,
     max: 60,
@@ -38,6 +39,18 @@ router.get(
   '/:contentId/details',
   guestOrAuth,
   ContentController.getContentDetailsPublic,
+);
+
+router.get(
+  '/:contentId/similar',
+  guestOrAuth,
+  ContentController.getSimilarContentPublic,
+);
+
+router.get(
+  '/seasons/:seasonId/episodes',
+  guestOrAuth,
+  ContentController.getEpisodesBySeasonPublic,
 );
 
 router.get(
@@ -74,6 +87,30 @@ router.get(
   '/movies',
   auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN),
   ContentController.getAdminMovies,
+);
+
+router.get(
+  '/movies/:movieId',
+  guestOrAuth,
+  ContentController.getMovieDetails,
+);
+
+router.get(
+  '/movies/:movieId/analytics/overview',
+  auth(USER_ROLES.SUPER_ADMIN),
+  ContentController.getMovieAnalyticsOverview,
+);
+
+router.get(
+  '/movies/:movieId/analytics/audience',
+  auth(USER_ROLES.SUPER_ADMIN),
+  ContentController.getMovieAnalyticsAudience,
+);
+
+router.get(
+  '/movies/:movieId/analytics/engagement',
+  auth(USER_ROLES.SUPER_ADMIN),
+  ContentController.getMovieAnalyticsEngagement,
 );
 
 router.patch(
@@ -117,22 +154,12 @@ router.get(
 router.post(
   '/series',
   auth(USER_ROLES.SUPER_ADMIN),
-  upload.fields([
-    { name: 'trailerFile', maxCount: 1 },
-    { name: 'posterFile', maxCount: 1 },
-    { name: 'thumbnailFile', maxCount: 1 },
-  ]),
   ContentController.createSeries,
 );
 
 router.patch(
   '/series/:seriesId',
   auth(USER_ROLES.SUPER_ADMIN),
-  upload.fields([
-    { name: 'trailerFile', maxCount: 1 },
-    { name: 'posterFile', maxCount: 1 },
-    { name: 'thumbnailFile', maxCount: 1 },
-  ]),
   ContentController.updateSeries,
 );
 
@@ -158,7 +185,10 @@ router.get(
 router.post(
   '/series/:seriesId/seasons',
   auth(USER_ROLES.SUPER_ADMIN),
-  upload.fields([{ name: 'posterFile', maxCount: 1 }]),
+  upload.fields([
+    { name: 'posterFile', maxCount: 1 },
+    { name: 'trailerFile', maxCount: 1 },
+  ]),
   ContentController.createSeason,
 );
 
@@ -171,7 +201,10 @@ router.get(
 router.patch(
   '/series/seasons/:seasonId',
   auth(USER_ROLES.SUPER_ADMIN),
-  upload.fields([{ name: 'posterFile', maxCount: 1 }]),
+  upload.fields([
+    { name: 'posterFile', maxCount: 1 },
+    { name: 'trailerFile', maxCount: 1 },
+  ]),
   ContentController.updateSeason,
 );
 
@@ -184,7 +217,6 @@ router.delete(
 // Episode Management
 router.get(
   '/series/:seriesId/episodes',
-  auth(USER_ROLES.SUPER_ADMIN),
   ContentController.getEpisodes,
 );
 

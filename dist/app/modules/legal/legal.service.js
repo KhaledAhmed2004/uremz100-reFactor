@@ -17,10 +17,10 @@ const http_status_codes_1 = require("http-status-codes");
 const slugify_1 = __importDefault(require("slugify"));
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const legal_model_1 = require("./legal.model");
-const generateSlug = (title) => __awaiter(void 0, void 0, void 0, function* () {
+const generateSlug = (title, excludeSlug) => __awaiter(void 0, void 0, void 0, function* () {
     const slug = (0, slugify_1.default)(title, { lower: true, strict: true });
     const existing = yield legal_model_1.LegalPage.findOne({ slug });
-    if (existing) {
+    if (existing && existing.slug !== excludeSlug) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.CONFLICT, 'A legal page with this title already exists');
     }
     return slug;
@@ -36,12 +36,12 @@ const createLegalPage = (payload) => __awaiter(void 0, void 0, void 0, function*
 });
 const getAll = () => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield legal_model_1.LegalPage.find()
-        .select('-_id slug title')
+        .select('slug title updatedAt')
         .sort({ title: 1 });
     return result;
 });
 const getBySlug = (slug) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield legal_model_1.LegalPage.findOne({ slug }).select('-_id slug title content updatedAt');
+    const result = yield legal_model_1.LegalPage.findOne({ slug }).select('slug title content updatedAt');
     if (!result) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Legal page not found');
     }
@@ -50,7 +50,7 @@ const getBySlug = (slug) => __awaiter(void 0, void 0, void 0, function* () {
 const updateBySlug = (slug, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const updateData = {};
     if (payload.title) {
-        const newSlug = yield generateSlug(payload.title);
+        const newSlug = yield generateSlug(payload.title, slug);
         updateData.title = payload.title;
         updateData.slug = newSlug;
     }

@@ -48,6 +48,7 @@ const CacheHelper_1 = require("./app/shared/CacheHelper");
 const accountPurgeScheduler_1 = require("./app/modules/user/accountPurgeScheduler");
 const orphanFileCleaner_1 = require("./shared/orphanFileCleaner");
 const pending_email_scheduler_1 = require("./app/modules/pending-email/pending-email.scheduler");
+const trending_cron_job_1 = require("./app/jobs/trending-cron.job");
 const bannerGenerator_1 = require("./shared/bannerGenerator");
 const startupSummary_1 = require("./shared/startupSummary");
 const spinnerHelper_1 = require("./shared/spinnerHelper");
@@ -179,6 +180,19 @@ function main() {
                 logger_1.errorLogger.error('PendingEmailScheduler.start() failed:', peErr);
                 // Don't throw — failed-state emails build up in the PendingEmail
                 // collection and can be drained manually via the admin endpoint.
+            }
+            // Trending calculations & Popularity cron (nightly)
+            const trendingSpinner = (0, spinnerHelper_1.createSpinner)({
+                text: 'Starting trending cron job...',
+                color: 'cyan',
+            });
+            try {
+                trending_cron_job_1.TrendingCronJob.init();
+                trendingSpinner.succeed('Trending cron job running (nightly)');
+            }
+            catch (tErr) {
+                trendingSpinner.warn('Trending cron job failed to start');
+                logger_1.errorLogger.error('TrendingCronJob.init() failed:', tErr);
             }
             // Validate performance thresholds
             if ((_b = (_a = config_1.default.tracing) === null || _a === void 0 ? void 0 : _a.performance) === null || _b === void 0 ? void 0 : _b.enabled) {

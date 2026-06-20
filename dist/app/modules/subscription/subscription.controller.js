@@ -19,8 +19,10 @@ const sendResponse_1 = __importDefault(require("../../../shared/sendResponse"));
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const subscription_service_1 = __importDefault(require("./subscription.service"));
 exports.getMySubscriptionController = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.user;
-    const result = yield subscription_service_1.default.getMySubscription(id);
+    var _a;
+    const id = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+    const guestId = req.guestId;
+    const result = yield subscription_service_1.default.getMySubscription(id, guestId);
     (0, sendResponse_1.default)(res, {
         success: true,
         statusCode: http_status_1.default.OK,
@@ -29,9 +31,11 @@ exports.getMySubscriptionController = (0, catchAsync_1.default)((req, res) => __
     });
 }));
 exports.verifyApplePurchaseController = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.user;
+    var _a;
+    const id = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+    const guestId = req.guestId;
     const { signedTransactionInfo } = req.body;
-    const result = yield subscription_service_1.default.verifyApplePurchase(id, signedTransactionInfo);
+    const result = yield subscription_service_1.default.verifyApplePurchase(id, guestId, signedTransactionInfo);
     (0, sendResponse_1.default)(res, {
         success: true,
         statusCode: http_status_1.default.OK,
@@ -64,9 +68,11 @@ exports.appleWebhookController = (0, catchAsync_1.default)((req, res) => __await
     res.sendStatus(http_status_1.default.OK);
 }));
 exports.verifyGooglePurchaseController = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.user;
+    var _a;
+    const id = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+    const guestId = req.guestId;
     const { purchaseToken, productId } = req.body;
-    const result = yield subscription_service_1.default.verifyGooglePurchase(id, purchaseToken, productId);
+    const result = yield subscription_service_1.default.verifyGooglePurchase(id, guestId, purchaseToken, productId);
     (0, sendResponse_1.default)(res, {
         success: true,
         statusCode: http_status_1.default.OK,
@@ -87,8 +93,10 @@ exports.googleWebhookController = (0, catchAsync_1.default)((req, res) => __awai
     res.sendStatus(http_status_1.default.OK);
 }));
 exports.chooseFreePlanController = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.user;
-    const result = yield subscription_service_1.default.setFreePlan(id);
+    var _a;
+    const id = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
+    const guestId = req.guestId;
+    const result = yield subscription_service_1.default.setFreePlan(id, guestId);
     (0, sendResponse_1.default)(res, {
         success: true,
         statusCode: http_status_1.default.OK,
@@ -103,7 +111,8 @@ exports.getAllSubscriptionsController = (0, catchAsync_1.default)((req, res) => 
         success: true,
         statusCode: http_status_1.default.OK,
         message: 'Subscriptions retrieved successfully',
-        data: result,
+        meta: result.meta,
+        data: result.data,
     });
 }));
 exports.getSubscriptionAnalyticsController = (0, catchAsync_1.default)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {

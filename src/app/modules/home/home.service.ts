@@ -3,7 +3,24 @@ import { Content } from '../content/content.model';
 import { redisClient } from '../../../shared/redisClient';
 import { logger } from '../../../shared/logger';
 
+import { Season } from '../content/season.model';
+
 const cardFields = 'title thumbnailUrl posterUrl type rating isPremium releaseDate publishedAt createdAt';
+
+const attachSeasonPosters = async (contents: any[]) => {
+  return Promise.all(
+    contents.map(async (content) => {
+      const obj = content.toObject ? content.toObject() : content;
+      if (obj.type === 'SERIES' && !obj.posterUrl) {
+        const latestSeason = await Season.findOne({ seriesId: obj._id }).sort('-seasonNumber').lean();
+        if (latestSeason && latestSeason.posterUrl) {
+          obj.posterUrl = latestSeason.posterUrl;
+        }
+      }
+      return obj;
+    })
+  );
+};
 
 // Helper to fetch data with Redis Cache
 const fetchWithCache = async (key: string, fetcher: () => Promise<any>, ttlSeconds: number = 3600) => {
@@ -60,12 +77,14 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
 
   const getTrending = () => fetchWithCache('home:trending', async () => {
     const data = await Content.find({ trendingScore: { $gt: 0 } }).sort({ trendingScore: -1 }).select(cardFields).limit(10);
-    return { id: 'row_trending_now', type: 'TRENDING', title: 'Trending Now', items: data };
+    const withPosters = await attachSeasonPosters(data);
+    return { id: 'row_trending_now', type: 'TRENDING', title: 'Trending Now', items: withPosters };
   });
 
   const getYouMightLike = () => fetchWithCache('home:you_might_like', async () => {
     const data = await Content.find().sort({ rating: -1 }).select(cardFields).limit(10);
-    return { id: 'row_you_might_like', type: 'YOU_MIGHT_LIKE', title: 'You Might Like', items: data };
+    const withPosters = await attachSeasonPosters(data);
+    return { id: 'row_you_might_like', type: 'YOU_MIGHT_LIKE', title: 'You Might Like', items: withPosters };
   });
 
   const getPopularSeries = () => fetchWithCache('home:popular_series', async () => {
@@ -73,7 +92,8 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
       type: 'SERIES',
       $or: [{ isPopularSeries: true }, { engagementScore: { $gte: 10 } }]
     }).sort({ engagementScore: -1 }).select(cardFields).limit(10);
-    return { id: 'row_popular_series', type: 'SERIES', title: 'Most Popular Series', items: data };
+    const withPosters = await attachSeasonPosters(data);
+    return { id: 'row_popular_series', type: 'SERIES', title: 'Most Popular Series', items: withPosters };
   });
 
   const getPopularMovies = () => fetchWithCache('home:popular_movies', async () => {
@@ -81,12 +101,14 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
       type: 'MOVIE',
       $or: [{ isPopularSeries: true }, { engagementScore: { $gte: 10 } }]
     }).sort({ engagementScore: -1 }).select(cardFields).limit(10);
-    return { id: 'row_popular_movies', type: 'MOVIE', title: 'Most Popular Movies', items: data };
+    const withPosters = await attachSeasonPosters(data);
+    return { id: 'row_popular_movies', type: 'MOVIE', title: 'Most Popular Movies', items: withPosters };
   });
 
   const getTopPicks = () => fetchWithCache('home:top_picks', async () => {
     const data = await Content.find({ rating: { $gte: 4.5 } }).select(cardFields).limit(10);
-    return { id: 'row_top_picks', type: 'TOP_PICKS', title: 'Top Picks for You', items: data };
+    const withPosters = await attachSeasonPosters(data);
+    return { id: 'row_top_picks', type: 'TOP_PICKS', title: 'Top Picks for You', items: withPosters };
   });
 
   const getNewReleases = () => fetchWithCache('home:new_releases', async () => {
@@ -95,7 +117,8 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
       publishedAt: { $gte: thirtyDaysAgo },
       status: 'PUBLISHED'
     }).sort({ publishedAt: -1 }).select(cardFields).limit(10);
-    return { id: 'row_new_releases', type: 'NEW_RELEASE', title: 'New Releases', items: data };
+    const withPosters = await attachSeasonPosters(data);
+    return { id: 'row_new_releases', type: 'NEW_RELEASE', title: 'New Releases', items: withPosters };
   });
 
   const getComingSoon = () => fetchWithCache('home:coming_soon', async () => {
@@ -107,7 +130,8 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
         { status: 'PUBLISHED' }
       ]
     }).sort({ releaseDate: 1 }).select(cardFields).limit(10);
-    return { id: 'row_coming_soon', type: 'COMING_SOON', title: 'Coming Soon', items: data };
+    const withPosters = await attachSeasonPosters(data);
+    return { id: 'row_coming_soon', type: 'COMING_SOON', title: 'Coming Soon', items: withPosters };
   });
 
   let queries: Promise<any>[] = [];
@@ -122,7 +146,8 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
       queries = [
         fetchWithCache('home:vip_weekly_v2', async () => {
           const data = await Content.find({ isPremium: true }).sort({ views: -1 }).select(cardFields).limit(10);
-          return { id: 'row_vip_weekly', type: 'VIP', title: "Weekly VIP Picks", items: data };
+          const withPosters = await attachSeasonPosters(data);
+          return { id: 'row_vip_weekly', type: 'VIP', title: "Weekly VIP Picks", items: withPosters };
         }),
         getComingSoon()
       ];
@@ -131,7 +156,8 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
       queries = [
         fetchWithCache('home:vip_daily_v2', async () => {
           const data = await Content.find({ isPremium: true }).sort({ rating: -1 }).select(cardFields).limit(10);
-          return { id: 'row_vip_daily', type: 'VIP', title: "Today's VIP Picks", items: data };
+          const withPosters = await attachSeasonPosters(data);
+          return { id: 'row_vip_daily', type: 'VIP', title: "Today's VIP Picks", items: withPosters };
         }),
         getComingSoon()
       ];
@@ -150,8 +176,9 @@ const getHomeContentFromDB = async (userId?: string, guestId?: string, tab: stri
           sortConfig = { views: -1 };
         }
         const data = await Content.find().sort(sortConfig).select(cardFields).limit(10);
+        const withPosters = await attachSeasonPosters(data);
         const title = filter === 'popular' ? 'Popular Rankings' : `${filter.charAt(0).toUpperCase() + filter.slice(1)} Rankings`;
-        return { id: `row_ranking_${filter}`, type: 'RANKING', title, items: data };
+        return { id: `row_ranking_${filter}`, type: 'RANKING', title, items: withPosters };
       })
     ];
   } else {

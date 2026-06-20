@@ -10,7 +10,7 @@ const contentSchema = new mongoose_1.Schema({
         required: true,
         default: [],
     },
-    poster: { type: String },
+    posterUrl: { type: String },
     videoUrl: {
         type: String,
         required: function () {
@@ -22,14 +22,19 @@ const contentSchema = new mongoose_1.Schema({
     releaseYear: { type: Number, required: true },
     rating: { type: Number, default: 0 },
     views: { type: Number, default: 0 },
+    dailyViews: { type: Number, default: 0 },
+    weeklyViews: { type: Number, default: 0 },
+    totalWatchTime: { type: Number, default: 0 },
+    engagementScore: { type: Number, default: 0 },
+    trendingScore: { type: Number, default: 0 },
     cast: { type: [String], default: [] },
     type: { type: String, enum: ['SERIES', 'MOVIE'], required: true },
     isPremium: { type: Boolean },
-    isRecent: { type: Boolean },
+    releaseDate: { type: Date },
     isPopularSeries: { type: Boolean, default: false },
     youtubeId: { type: String },
     channelName: { type: String },
-    publishedAt: { type: Date },
+    publishedAt: { type: Date, default: () => new Date(), index: true },
     planStatus: {
         type: [String],
         enum: ['FREE', 'WEEKLY', 'MONTHLY', 'YEARLY', 'ALL'],
@@ -44,5 +49,13 @@ const contentSchema = new mongoose_1.Schema({
     totalEpisodes: { type: Number, default: 0 },
 }, {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
+});
+contentSchema.virtual('isRecent').get(function () {
+    // If publishedAt exists, use it; otherwise use createdAt
+    const date = this.publishedAt || this.createdAt;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return date && date >= thirtyDaysAgo;
 });
 exports.Content = (0, mongoose_1.model)('Content', contentSchema);

@@ -66,7 +66,7 @@ router.get(
 // Community Discovery (Lists active users of the same role)
 router.get(
   '/profiles',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.JUMMAH),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   UserController.getUserProfiles,
 );
 

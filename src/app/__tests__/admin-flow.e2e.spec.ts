@@ -597,6 +597,96 @@ Feature: Movies Management
       expect(res.body.success).toBe(true);
       expect(Array.isArray(res.body.data)).toBe(true);
     });
+    it('should fetch the movie details successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH MOVIE DETAILS
+Feature: Movies Management
+  Scenario: Admin views detailed information for a specific movie
+    Given the admin has selected a movie
+    When the admin requests the movie details
+    Then the system returns the comprehensive profile of the movie
+`);
+      const res = await request(app)
+        .get(`/api/v1/contents/movies/${targetContentId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies/:movieId', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-MOVIE-DETAILS', 'Admin fetches details for a specific movie');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+      expect(res.body.data.id || res.body.data._id).toBe(targetContentId);
+    });
+
+    it('should fetch the movie analytics engagement successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH MOVIE ANALYTICS ENGAGEMENT
+Feature: Movies Management
+  Scenario: Admin views engagement analytics for a specific movie
+    Given the admin has selected a movie
+    When the admin requests the movie engagement analytics
+    Then the system returns the engagement data
+`);
+      const res = await request(app)
+        .get(`/api/v1/contents/movies/${targetContentId}/analytics/engagement`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies/:movieId/analytics/engagement', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-MOVIE-ANALYTICS-ENGAGEMENT', 'Admin fetches engagement analytics for a specific movie');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+      expect(res.body.data.engagement).toBeDefined();
+      // expect(res.body.data.audience).toBeDefined();
+      // expect(res.body.data.revenue).toBeDefined();
+    });
+
+    it('should fetch the movie analytics overview successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH MOVIE ANALYTICS OVERVIEW
+Feature: Movies Management
+  Scenario: Admin views overview analytics for a specific movie
+    Given the admin has selected a movie
+    When the admin requests the movie analytics overview
+    Then the system returns the overview data including views, watchTime, and realtimeAnalytics
+`);
+      const res = await request(app)
+        .get(`/api/v1/contents/movies/${targetContentId}/analytics/overview`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies/:movieId/analytics/overview', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-MOVIE-ANALYTICS-OVERVIEW', 'Admin fetches overview analytics for a specific movie');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+      expect(res.body.data.views).toBeDefined();
+      expect(res.body.data.watchTime).toBeDefined();
+      expect(res.body.data.realtimeAnalytics).toBeDefined();
+    });
+
+    it('should fetch the movie analytics audience successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH MOVIE ANALYTICS AUDIENCE
+Feature: Movies Management
+  Scenario: Admin views audience analytics for a specific movie
+    Given the admin has selected a movie
+    When the admin requests the movie analytics audience
+    Then the system returns the audience data including watchTimeFromSubscribers, demographics, and geography
+`);
+      const res = await request(app)
+        .get(`/api/v1/contents/movies/${targetContentId}/analytics/audience`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/movies/:movieId/analytics/audience', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-MOVIE-ANALYTICS-AUDIENCE', 'Admin fetches audience analytics for a specific movie');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+      expect(res.body.data.watchTimeFromSubscribers).toBeDefined();
+      expect(res.body.data.demographics).toBeDefined();
+      expect(res.body.data.geography).toBeDefined();
+    });
+
 
     it('should delete a movie successfully', async () => {
       console.info(`
@@ -632,6 +722,8 @@ Feature: Movies Management
   });
 
   describe('4.2. Series Management Flow', () => {
+    let targetSeriesId: string;
+
     it('should fetch the overall series statistics successfully', async () => {
       console.info(`
 📖 BDD SCENARIO: FETCH SERIES STATS
@@ -650,6 +742,282 @@ Feature: Series Management
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);
       expect(res.body.data).toBeDefined();
+    });
+
+    it('should create a new series successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: CREATE SERIES
+Feature: Series Management
+  Scenario: Admin creates a new series
+    Given the admin has all series details (title, description, genres, etc.)
+    When the admin submits the series creation form
+    Then the system validates the input
+    And stores the new series in the database
+`);
+      const payload = {
+        title: 'E2E Testing Series',
+        description: 'This is an amazing series created by E2E test.',
+        releaseYear: 2026,
+        status: 'DRAFT',
+        planStatus: ['FREE'],
+        genres: ['60d5ecb54cb7c1a3b8d4f7a1'],
+      };
+
+      const res = await request(app)
+        .post('/api/v1/contents/series')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload);
+
+      logApi('POST', '/api/v1/contents/series', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'POST-ADMIN-SERIES', 'Admin creates a new series');
+
+      expect(res.status).toBe(StatusCodes.CREATED);
+      expect(res.body.success).toBe(true);
+      targetSeriesId = res.body.data.id || res.body.data._id;
+      expect(targetSeriesId).toBeDefined();
+    });
+
+    it('should fetch the paginated list of series', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH ADMIN SERIES
+Feature: Series Management
+  Scenario: Admin views all series in the CMS
+    Given the admin is on the Series Management table
+    When the admin fetches the series list
+    Then the system returns a paginated list of series
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/series?limit=5')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/series', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { limit: 5 } }, res.body, 'GET-ADMIN-SERIES-LIST', 'Admin fetches paginated series list');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('should search for series by title', async () => {
+      console.info(`
+📖 BDD SCENARIO: SEARCH SERIES
+Feature: Series Management
+  Scenario: Admin searches for a series by title
+    Given the admin is on the Series Management page
+    When the admin enters a series title in the search bar
+    Then the system returns the matching series
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/series?searchTerm=Test')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/series?searchTerm=Test', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { searchTerm: 'Test' } }, res.body, 'GET-ADMIN-SERIES-SEARCH', 'Admin searches for a series by title');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+    });
+
+    it('should filter series by status', async () => {
+      console.info(`
+📖 BDD SCENARIO: FILTER SERIES BY STATUS
+Feature: Series Management
+  Scenario: Admin filters series by their status
+    Given the admin is on the Series Management page
+    When the admin selects the 'PUBLISHED' status filter
+    Then the system returns only published series
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/series?status=PUBLISHED')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/series?status=PUBLISHED', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { status: 'PUBLISHED' } }, res.body, 'GET-ADMIN-SERIES-FILTER-STATUS', 'Admin filters series by status');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      if (res.body.data.length > 0) {
+        expect(res.body.data[0].status).toBe('PUBLISHED');
+      }
+    });
+
+    it('should filter series by availability (planStatus)', async () => {
+      console.info(`
+📖 BDD SCENARIO: FILTER SERIES BY AVAILABILITY
+Feature: Series Management
+  Scenario: Admin filters series by planStatus
+    Given the admin is on the Series Management page
+    When the admin selects the 'FREE' plan filter
+    Then the system returns only free series
+`);
+      const res = await request(app)
+        .get('/api/v1/contents/series?planStatus=FREE')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/series?planStatus=FREE', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { planStatus: 'FREE' } }, res.body, 'GET-ADMIN-SERIES-FILTER-PLAN', 'Admin filters series by availability');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      if (res.body.data.length > 0) {
+        expect(res.body.data[0].planStatus).toContain('FREE');
+      }
+    });
+
+    it('should update series details securely', async () => {
+      console.info(`
+📖 BDD SCENARIO: UPDATE SERIES
+Feature: Series Management
+  Scenario: Admin edits a specific series
+    Given the admin has selected a series to edit
+    When the admin updates the series title
+    Then the system reflects the updated details
+`);
+      const payload = { title: 'E2E Testing Series - Updated' };
+      const res = await request(app)
+        .patch(`/api/v1/contents/series/${targetSeriesId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload);
+
+      logApi('PATCH', '/api/v1/contents/series/:seriesId', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'PATCH-ADMIN-SERIES', 'Admin edits series details');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.title).toBe('E2E Testing Series - Updated');
+    });
+
+    it('should update series status', async () => {
+      console.info(`
+📖 BDD SCENARIO: PUBLISH SERIES
+Feature: Series Management
+  Scenario: Admin changes series status to PUBLISHED
+    Given the admin has finalized a series
+    When the admin changes the status from DRAFT to PUBLISHED
+    Then the system marks the series as live
+`);
+      const res = await request(app)
+        .patch(`/api/v1/contents/series/${targetSeriesId}/status`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status: 'PUBLISHED' });
+
+      logApi('PATCH', '/api/v1/contents/series/:seriesId/status', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { status: 'PUBLISHED' } }, res.body, 'PATCH-ADMIN-SERIES-STATUS', 'Admin changes series status');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('PUBLISHED');
+    });
+
+    it('should fetch specific series details', async () => {
+      console.info(`
+📖 BDD SCENARIO: VIEW SERIES DETAILS
+Feature: Series Management
+  Scenario: Admin views full details of a specific series
+    Given the admin clicks on a series
+    When the system requests the series details
+    Then the system returns the full document
+`);
+      const res = await request(app)
+        .get(`/api/v1/contents/series/${targetSeriesId}/details`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/series/:seriesId/details', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-SERIES-DETAILS', 'Admin fetches specific series details');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.id || res.body.data._id).toBe(targetSeriesId);
+    });
+    let targetSeasonId: string;
+
+    it('should create a season for the series', async () => {
+      console.info(`
+📖 BDD SCENARIO: CREATE SEASON
+Feature: Series Management
+  Scenario: Admin creates a season
+    Given the admin has a series
+    When the admin submits season details
+    Then the system creates the season
+`);
+      const res = await request(app)
+        .post(`/api/v1/contents/series/${targetSeriesId}/seasons`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .field('title', 'Season 1')
+        .field('seasonNumber', 1)
+        .field('posterUrl', 'https://test.com/poster.jpg')
+        .field('trailerUrl', 'https://test.com/trailer.mp4');
+
+      logApi('POST', '/api/v1/contents/series/:seriesId/seasons', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { title: 'Season 1', seasonNumber: 1, posterUrl: 'https://test.com/poster.jpg', trailerUrl: 'https://test.com/trailer.mp4' } }, res.body, 'POST-ADMIN-SEASON', 'Admin creates a season');
+
+      expect(res.status).toBe(StatusCodes.CREATED);
+      expect(res.body.success).toBe(true);
+      targetSeasonId = res.body.data._id || res.body.data.id;
+    });
+
+    it('should create an episode for the season', async () => {
+      console.info(`
+📖 BDD SCENARIO: CREATE EPISODE
+Feature: Series Management
+  Scenario: Admin creates an episode
+    Given the admin has a season
+    When the admin submits episode details
+    Then the system creates the episode
+`);
+      const res = await request(app)
+        .post(`/api/v1/contents/series/${targetSeriesId}/episodes`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .field('title', 'Episode 1: The Beginning')
+        .field('description', 'First episode description')
+        .field('duration', 45)
+        .field('releaseDate', new Date().toISOString())
+        .field('planStatus', 'FREE')
+        .field('status', 'PUBLISHED')
+        .field('seasonId', targetSeasonId || '6a35811b959603e76aa75b28') // Prevent crash if targetSeasonId is somehow undefined
+        .field('seasonNumber', 1)
+        .field('episodeNumber', 1)
+        .field('videoUrl', 'https://test.com/video.mp4')
+        .field('thumbnailUrl', 'https://test.com/thumb.jpg');
+
+      logApi('POST', '/api/v1/contents/series/:seriesId/episodes', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { title: 'Episode 1' } }, res.body, 'POST-ADMIN-EPISODE', 'Admin creates an episode');
+
+      expect(res.status).toBe(StatusCodes.CREATED);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should fetch paginated episodes of a series', async () => {
+      console.info(`
+📖 BDD SCENARIO: FETCH SERIES EPISODES
+Feature: Series Management
+  Scenario: Admin views the list of episodes for a specific series or season
+    Given the admin is managing a specific series
+    When the admin requests the list of episodes
+    Then the system returns a paginated list of episodes
+`);
+      const res = await request(app)
+        .get(`/api/v1/contents/series/${targetSeriesId}/episodes?limit=10&seasonId=${targetSeasonId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('GET', '/api/v1/contents/series/:seriesId/episodes', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { limit: 10, seasonId: '<SEASON_ID>' } }, res.body, 'GET-ADMIN-SERIES-EPISODES', 'Admin fetches paginated series episodes');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toBeDefined();
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+      expect(res.body.meta).toBeDefined();
+    });
+
+    it('should delete a series successfully', async () => {
+      console.info(`
+📖 BDD SCENARIO: DELETE SERIES
+Feature: Series Management
+  Scenario: Admin deletes a single series
+    Given the admin has a series to delete
+    When the admin requests to delete the series
+    Then the system permanently removes the series and all nested seasons/episodes
+`);
+      const res = await request(app)
+        .delete(`/api/v1/contents/series/${targetSeriesId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      logApi('DELETE', '/api/v1/contents/series/:seriesId', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'DELETE-ADMIN-SERIES', 'Admin deletes a single series');
+
+      expect(res.status).toBe(StatusCodes.OK);
+      expect(res.body.success).toBe(true);
     });
   });
 
@@ -806,10 +1174,10 @@ Feature: Subscription Management
     Then the system returns the matching subscriptions
 `);
       const res = await request(app)
-        .get('/api/v1/subscriptions?searchTerm=target_')
+        .get('/api/v1/subscriptions?searchTerm=TRX-GUEST-')
         .set('Authorization', `Bearer ${adminToken}`);
 
-      logApi('GET', '/api/v1/subscriptions?searchTerm=target_', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { searchTerm: 'target_' } }, res.body, 'GET-ADMIN-SUBSCRIPTIONS-SEARCH', 'Admin searches subscriptions');
+      logApi('GET', '/api/v1/subscriptions?searchTerm=TRX-GUEST-', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { searchTerm: 'TRX-GUEST-' } }, res.body, 'GET-ADMIN-SUBSCRIPTIONS-SEARCH', 'Admin searches subscriptions');
 
       expect(res.status).toBe(StatusCodes.OK);
       expect(res.body.success).toBe(true);

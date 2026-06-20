@@ -12,7 +12,7 @@ const sendNotification = z.object({
         .string({ required_error: 'Message is required' })
         .min(1)
         .max(5000),
-      audience: z.enum(['ALL', USER_ROLES.BROTHER, USER_ROLES.SISTER], {
+      audience: z.enum(['ALL', USER_ROLES.USER, USER_ROLES.USER], {
         required_error: 'Audience is required',
       }),
     }),

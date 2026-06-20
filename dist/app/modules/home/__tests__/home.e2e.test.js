@@ -26,7 +26,7 @@ const config_1 = __importDefault(require("../../../../config"));
 if (!config_1.default.jwt)
     config_1.default.jwt = {};
 config_1.default.jwt.jwt_secret = 'test-secret-key-for-e2e';
-config_1.default.jwt.jwt_expires_in = '1d';
+config_1.default.jwt.jwt_expire_in = '1d';
 let mongoServer;
 (0, vitest_1.describe)('E2E: Guest User to Registered User Flow', () => {
     let contentId;
@@ -82,7 +82,7 @@ let mongoServer;
             name: 'E2E User',
             email: 'e2e@example.com',
             password: 'password123',
-            role: user_1.USER_ROLES.BROTHER,
+            role: user_1.USER_ROLES.USER,
             status: user_1.USER_STATUS.ACTIVE,
             isVerified: true,
             revertDate: new Date(),
@@ -97,7 +97,7 @@ let mongoServer;
         const rw = yield recently_watched_model_1.RecentlyWatched.findOne({ userId: user._id });
         (0, vitest_1.expect)(rw).not.toBeNull();
         (0, vitest_1.expect)(rw === null || rw === void 0 ? void 0 : rw.guestId).toBeUndefined();
-        (0, vitest_1.expect)(rw === null || rw === void 0 ? void 0 : rw.userId.toString()).toBe(user._id.toString());
+        (0, vitest_1.expect)(rw.userId.toString()).toBe(user._id.toString());
         // Simulate logging in and getting a token (we'll just fake it for the test logic)
         userToken = 'Bearer fake-jwt-token-for-e2e';
     }));

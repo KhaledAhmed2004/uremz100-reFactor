@@ -47,7 +47,7 @@ router.patch(
 // Create a new ticket (with optional attachments)
 router.post(
   '/',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   fileHandler(ATTACHMENT_FIELDS, FILE_OPTS),
   validateRequest(SupportTicketValidation.createTicketZodSchema),
   SupportTicketController.createTicket,
@@ -56,14 +56,14 @@ router.post(
 // List my tickets (BROTHER/SISTER only — admins use /admin/list)
 router.get(
   '/my',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   SupportTicketController.getMyTickets,
 );
 
 // Reply to a ticket (any participant — ownership / admin checked in service)
 router.post(
   '/:ticketId/reply',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   fileHandler(ATTACHMENT_FIELDS, FILE_OPTS),
   validateRequest(SupportTicketValidation.replyTicketZodSchema),
   SupportTicketController.replyToTicket,
@@ -72,7 +72,7 @@ router.post(
 // Paginated message list for a single ticket
 router.get(
   '/:ticketId/messages',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   validateRequest(SupportTicketValidation.ticketIdParamSchema),
   SupportTicketController.getTicketMessages,
 );
@@ -80,7 +80,7 @@ router.get(
 // Single ticket detail (no messages — paginated separately)
 router.get(
   '/:ticketId',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   validateRequest(SupportTicketValidation.ticketIdParamSchema),
   SupportTicketController.getTicketById,
 );

@@ -78,7 +78,7 @@ describe('E2E: Guest User to Registered User Flow', () => {
       name: 'E2E User',
       email: 'e2e@example.com',
       password: 'password123',
-      role: USER_ROLES.BROTHER,
+      role: USER_ROLES.USER,
       status: USER_STATUS.ACTIVE,
       isVerified: true,
       revertDate: new Date(),

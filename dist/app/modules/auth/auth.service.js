@@ -52,12 +52,7 @@ const loginUserFromDB = (payload, sessionMetadata) => __awaiter(void 0, void 0, 
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'Your account has been deleted. Contact support.');
     }
     if (isExistUser.status === user_1.USER_STATUS.PENDING) {
-        if (!isExistUser.isVerified) {
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'Your account is pending verification. Please verify your email.');
-        }
-        else {
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'Admin Verification Pending. Your account is currently under review.');
-        }
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'Your account is pending verification. Please verify your email.');
     }
     if (isExistUser.status === user_1.USER_STATUS.REJECTED) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.FORBIDDEN, 'Your account was rejected.');
@@ -173,23 +168,8 @@ const verifyEmailToDB = (payload) => __awaiter(void 0, void 0, void 0, function*
             },
         }, { new: true });
         if ((updatedUser === null || updatedUser === void 0 ? void 0 : updatedUser.status) === user_1.USER_STATUS.PENDING) {
-            if (updatedUser.role === user_1.USER_ROLES.JUMMAH) {
-                // Automatically make them ACTIVE since they do not need admin approval
-                yield user_model_1.User.findOneAndUpdate({ _id: updatedUser._id }, { $set: { status: user_1.USER_STATUS.ACTIVE } });
-            }
-            else {
-                message =
-                    'Email verified successfully. Your account is now pending admin approval. You will receive an email once an administrator approves your account.';
-                return {
-                    data: {
-                        email: updatedUser.email,
-                        isVerified: updatedUser.isVerified,
-                        status: updatedUser.status,
-                    },
-                    message,
-                    tokens: null,
-                };
-            }
+            // Automatically make them ACTIVE since there is no admin verification step
+            yield user_model_1.User.findOneAndUpdate({ _id: updatedUser._id }, { $set: { status: user_1.USER_STATUS.ACTIVE } });
         }
         // Auto-login for users who are already ACTIVE (e.g. email change or re-verify)
         const accessToken = jwtHelper_1.jwtHelper.createToken({

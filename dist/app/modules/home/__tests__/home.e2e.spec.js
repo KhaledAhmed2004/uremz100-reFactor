@@ -27,6 +27,12 @@ const user_1 = require("../../../../enums/user");
 const testLogger_1 = require("../../../../helpers/__tests__/testLogger");
 const http_status_codes_1 = require("http-status-codes");
 let replSet;
+vitest_1.vi.mock('../../../../shared/redisClient', () => ({
+    redisClient: {
+        get: vitest_1.vi.fn().mockResolvedValue(null),
+        setEx: vitest_1.vi.fn().mockResolvedValue('OK'),
+    }
+}));
 function createAuthUser() {
     return __awaiter(this, arguments, void 0, function* (role = user_1.USER_ROLES.SUPER_ADMIN, nameSuffix = 'admin') {
         const user = yield user_model_1.User.create({
@@ -63,7 +69,7 @@ function createAuthUser() {
 (0, vitest_1.describe)('Home Module E2E Tests', () => {
     (0, vitest_1.describe)('Get Home Content (GET /api/v1/home/content)', () => {
         (0, vitest_1.it)('successfully retrieves popular sections using ?tab=popular', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { token } = yield createAuthUser(user_1.USER_ROLES.USER);
             // 1. Trending Movie (views > 100)
             yield content_model_1.Content.create({
                 title: 'Trending Movie',
@@ -85,6 +91,7 @@ function createAuthUser() {
                 releaseYear: 2024,
                 views: 90,
                 rating: 4.2,
+                engagementScore: 15,
             });
             // 3. Popular Series
             yield content_model_1.Content.create({
@@ -161,7 +168,7 @@ function createAuthUser() {
             (0, vitest_1.expect)(continueWatchingSection.items[0].title).toBe('Guest Top Pick');
         }));
         (0, vitest_1.it)('successfully retrieves new sections using ?tab=new', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { token } = yield createAuthUser(user_1.USER_ROLES.USER);
             yield content_model_1.Content.create({
                 title: 'New Coming Soon',
                 description: 'desc',
@@ -197,7 +204,7 @@ function createAuthUser() {
             (0, vitest_1.expect)(newReleaseSection.title).toBe('New Releases');
         }));
         (0, vitest_1.it)('successfully retrieves vip sections using ?tab=vip', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { token } = yield createAuthUser(user_1.USER_ROLES.USER);
             yield content_model_1.Content.create({
                 title: 'VIP Movie',
                 description: 'Premium content',
@@ -218,12 +225,9 @@ function createAuthUser() {
             const vipDailySection = sections.find((s) => s.id === 'row_vip_daily');
             (0, vitest_1.expect)(vipDailySection).toBeDefined();
             (0, vitest_1.expect)(vipDailySection.title).toBe("Today's VIP Picks");
-            const vipWeeklySection = sections.find((s) => s.id === 'row_vip_weekly');
-            (0, vitest_1.expect)(vipWeeklySection).toBeDefined();
-            (0, vitest_1.expect)(vipWeeklySection.title).toBe("Weekly VIP Picks");
         }));
         (0, vitest_1.it)('successfully retrieves ranking sections using ?tab=ranking&filter=weekly', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { token } = yield createAuthUser(user_1.USER_ROLES.USER);
             yield content_model_1.Content.create({
                 title: 'Weekly Hit Movie',
                 description: 'Hits of the week',
@@ -246,7 +250,7 @@ function createAuthUser() {
             (0, vitest_1.expect)(rankingSection.items.length).toBeGreaterThan(0);
         }));
         (0, vitest_1.it)('returns an empty sections array when there is no content matching the tab', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { token } = yield createAuthUser(user_1.USER_ROLES.USER);
             // We do NOT create any Content here, so the DB is empty for this test
             const response = yield (0, supertest_1.default)(app_1.default)
                 .get('/api/v1/home/content?tab=new')

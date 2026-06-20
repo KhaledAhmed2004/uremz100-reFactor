@@ -20,6 +20,21 @@ const reward_interface_1 = require("./reward.interface");
 const reward_constant_1 = require("./reward.constant");
 const user_model_1 = require("../user/user.model");
 const mongoose_1 = require("mongoose");
+// Helper to automatically create wallet/progress for guests
+const getOrCreateWalletAndProgress = (ownerQuery, session) => __awaiter(void 0, void 0, void 0, function* () {
+    const options = session ? { session } : {};
+    let wallet = yield reward_model_1.Wallet.findOne(ownerQuery).session(session || null);
+    let progress = yield reward_model_1.UserRewardProgress.findOne(ownerQuery).session(session || null);
+    if (!wallet) {
+        const newWallet = new reward_model_1.Wallet(Object.assign(Object.assign({}, ownerQuery), { goldBalance: 0, bonusLedger: [] }));
+        wallet = yield newWallet.save(options);
+    }
+    if (!progress) {
+        const newProgress = new reward_model_1.UserRewardProgress(ownerQuery);
+        progress = yield newProgress.save(options);
+    }
+    return { wallet, progress };
+});
 // Helper to filter and calculate active bonus balance
 const getActiveBonus = (bonusLedger) => {
     const now = new Date().getTime();
@@ -33,33 +48,34 @@ const getActiveBonus = (bonusLedger) => {
     });
     return { bonusBalance, activeLedgers };
 };
-const getWalletDetails = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    const wallet = yield reward_model_1.Wallet.findOne({ user: userId });
-    if (!wallet) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Wallet not found for this user');
-    }
+const getWalletDetails = (ownerQuery) => __awaiter(void 0, void 0, void 0, function* () {
+    const { wallet } = yield getOrCreateWalletAndProgress(ownerQuery);
     const { bonusBalance, activeLedgers } = getActiveBonus(wallet.bonusLedger);
     // If there are expired ledgers, optionally clean them up (non-blocking)
     if (activeLedgers.length !== wallet.bonusLedger.length) {
         wallet.bonusLedger = activeLedgers;
         wallet.save().catch(console.error); // Fire and forget
     }
-    const transactions = yield reward_model_1.Transaction.find({ wallet: wallet._id })
-        .sort({ createdAt: -1 })
-        .limit(50); // Get recent 50 transactions
-    const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId });
+    const progressDoc = yield reward_model_1.UserRewardProgress.findOne(ownerQuery).lean();
+    let progress = null;
+    if (progressDoc) {
+        progress = Object.assign(Object.assign({}, progressDoc), { dailyWatchReward: progressDoc.dailyWatchReward || {
+                lastClaimDate: null,
+                claimedDuration: 0,
+            } });
+        // Remove fields from the response DTO
+        delete progress.freshDramaWatchTimeClaimed;
+        delete progress.hasClaimedBindEmailReward;
+        delete progress.hasClaimedProfileReward;
+    }
     return {
-        goldBalance: wallet.goldBalance,
-        bonusBalance,
-        transactions,
+        coinBalance: wallet.goldBalance + bonusBalance,
         progress,
     };
 });
 // Generic helper to add bonus coins
-const grantBonusCoins = (session, userId, amount, source, description) => __awaiter(void 0, void 0, void 0, function* () {
-    const wallet = yield reward_model_1.Wallet.findOne({ user: userId }).session(session);
-    if (!wallet)
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Wallet not found');
+const grantBonusCoins = (session, ownerQuery, amount, source, description) => __awaiter(void 0, void 0, void 0, function* () {
+    const { wallet } = yield getOrCreateWalletAndProgress(ownerQuery, session);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + reward_constant_1.REWARD_CONFIG.BONUS_EXPIRATION_DAYS);
     wallet.bonusLedger.push({ amount, expiresAt, source });
@@ -76,23 +92,44 @@ const grantBonusCoins = (session, userId, amount, source, description) => __awai
     ], { session });
     return wallet;
 });
-const claimWatchTimeReward = (userId, minutes) => __awaiter(void 0, void 0, void 0, function* () {
-    const allowedMilestones = Object.keys(reward_constant_1.REWARD_CONFIG.WATCH_TIME).map(Number);
-    if (!allowedMilestones.includes(minutes)) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Invalid milestone. Allowed milestones: ${allowedMilestones.join(', ')}`);
+const claimWatchTimeReward = (ownerQuery, videoDuration) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    if (videoDuration < 5) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'ভিডিও 5 মিনিট দেখতে হবে রিওয়ার্ড পেতে।');
     }
-    const rewardAmount = reward_constant_1.REWARD_CONFIG.WATCH_TIME[minutes];
+    let rewardAmount = 0;
+    if (videoDuration >= 5 && videoDuration < 10)
+        rewardAmount = 10;
+    else if (videoDuration >= 10 && videoDuration < 20)
+        rewardAmount = 15;
+    else if (videoDuration >= 20 && videoDuration < 30)
+        rewardAmount = 20;
+    else if (videoDuration >= 30 && videoDuration < 40)
+        rewardAmount = 25;
+    else if (videoDuration >= 40)
+        rewardAmount = 30;
+    if (rewardAmount === 0) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'ভিডিও 5 মিনিট দেখতে হবে রিওয়ার্ড পেতে।');
+    }
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
-        if (progress.watchTimeMilestonesClaimed.includes(minutes)) {
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Milestone ${minutes} minutes already claimed`);
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        const lastClaimDate = (_a = progress.dailyWatchReward) === null || _a === void 0 ? void 0 : _a.lastClaimDate;
+        if (lastClaimDate) {
+            const lastClaimed = new Date(lastClaimDate);
+            lastClaimed.setUTCHours(0, 0, 0, 0);
+            if (today.getTime() === lastClaimed.getTime()) {
+                throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'আপনি আজকে রিওয়ার্ড নিয়েছেন। পরের দিনে আবার চেষ্টা করুন।');
+            }
         }
-        yield grantBonusCoins(session, userId, rewardAmount, reward_interface_1.TransactionSource.WATCH_TIME, `Watched ${minutes} Minutes`);
-        progress.watchTimeMilestonesClaimed.push(minutes);
+        yield grantBonusCoins(session, ownerQuery, rewardAmount, reward_interface_1.TransactionSource.WATCH_TIME, `Watched ${videoDuration} Minutes (Daily Reward)`);
+        progress.dailyWatchReward = {
+            lastClaimDate: new Date(),
+            claimedDuration: videoDuration,
+        };
         yield progress.save({ session });
         yield session.commitTransaction();
         session.endSession();
@@ -104,7 +141,7 @@ const claimWatchTimeReward = (userId, minutes) => __awaiter(void 0, void 0, void
         throw error;
     }
 });
-const claimFreshWatchTimeReward = (userId, minutes) => __awaiter(void 0, void 0, void 0, function* () {
+const claimFreshWatchTimeReward = (ownerQuery, minutes) => __awaiter(void 0, void 0, void 0, function* () {
     const allowedMilestones = Object.keys(reward_constant_1.REWARD_CONFIG.FRESH_DRAMA).map(Number);
     if (!allowedMilestones.includes(minutes)) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Invalid milestone. Allowed milestones: ${allowedMilestones.join(', ')}`);
@@ -113,13 +150,11 @@ const claimFreshWatchTimeReward = (userId, minutes) => __awaiter(void 0, void 0,
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
         if (progress.freshDramaWatchTimeClaimed.includes(minutes)) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, `Milestone ${minutes} minutes already claimed for fresh dramas`);
         }
-        yield grantBonusCoins(session, userId, rewardAmount, reward_interface_1.TransactionSource.FRESH_DRAMA, `Watched Fresh Drama ${minutes} Minutes`);
+        yield grantBonusCoins(session, ownerQuery, rewardAmount, reward_interface_1.TransactionSource.FRESH_DRAMA, `Watched Fresh Drama ${minutes} Minutes`);
         progress.freshDramaWatchTimeClaimed.push(minutes);
         yield progress.save({ session });
         yield session.commitTransaction();
@@ -132,40 +167,67 @@ const claimFreshWatchTimeReward = (userId, minutes) => __awaiter(void 0, void 0,
         throw error;
     }
 });
-const claimDailyCheckIn = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+const claimDailyCheckIn = (ownerQuery) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
         const today = new Date();
-        const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-        let lastCheckInUTC = null;
-        if (progress.lastCheckInDate) {
-            const last = progress.lastCheckInDate;
-            lastCheckInUTC = new Date(Date.UTC(last.getUTCFullYear(), last.getUTCMonth(), last.getUTCDate()));
+        const todayUTC = new Date(today);
+        todayUTC.setUTCHours(0, 0, 0, 0);
+        // Initialize streak structure for backwards compatibility
+        if (!progress.checkInStreak) {
+            progress.checkInStreak = {
+                currentDay: 1,
+                totalStreaksCompleted: 0,
+                isStreakActive: true,
+            };
         }
-        if (lastCheckInUTC && lastCheckInUTC.getTime() === todayUTC.getTime()) {
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Already checked in today');
+        if (!progress.checkInRewards) {
+            progress.checkInRewards = {};
         }
-        let currentStreak = progress.dailyStreak;
-        if (lastCheckInUTC && todayUTC.getTime() - lastCheckInUTC.getTime() === 24 * 60 * 60 * 1000) {
-            currentStreak += 1;
+        let lastClaimDateUTC = null;
+        if (progress.checkInStreak.lastClaimDate) {
+            lastClaimDateUTC = new Date(progress.checkInStreak.lastClaimDate);
+            lastClaimDateUTC.setUTCHours(0, 0, 0, 0);
+        }
+        if (lastClaimDateUTC && lastClaimDateUTC.getTime() === todayUTC.getTime()) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Already claimed today');
+        }
+        let currentDay = progress.checkInStreak.currentDay || 1;
+        if (lastClaimDateUTC) {
+            const daysMissed = Math.round((todayUTC.getTime() - lastClaimDateUTC.getTime()) / (1000 * 60 * 60 * 24));
+            if (daysMissed > 1) {
+                currentDay = 1;
+                progress.checkInStreak.isStreakActive = false;
+                progress.checkInRewards = {};
+            }
+        }
+        const rewardCoins = reward_constant_1.REWARD_CONFIG.DAILY_CHECK_IN[currentDay] || 10;
+        yield grantBonusCoins(session, ownerQuery, rewardCoins, reward_interface_1.TransactionSource.DAILY_CHECK_IN, `Day ${currentDay} Check-in`);
+        progress.checkInRewards[`day${currentDay}`] = { claimed: true, claimedAt: today };
+        progress.checkInStreak.lastClaimDate = today;
+        progress.checkInStreak.isStreakActive = true;
+        if (currentDay === 7) {
+            progress.checkInStreak.currentDay = 1;
+            progress.checkInStreak.totalStreaksCompleted = (progress.checkInStreak.totalStreaksCompleted || 0) + 1;
+            // We don't clear checkInRewards immediately so the UI can show Day 7 claimed, 
+            // it will be cleared automatically on the next check-in because daysMissed logic or a cycle reset.
+            // Actually, standard is to clear on the start of the next cycle. Let's leave it, 
+            // but if currentDay was 7, next checkin will start at 1 anyway.
         }
         else {
-            currentStreak = 1;
+            progress.checkInStreak.currentDay = currentDay + 1;
         }
-        if (currentStreak > 7)
-            currentStreak = 1;
-        const rewardAmount = reward_constant_1.REWARD_CONFIG.DAILY_CHECK_IN[currentStreak] || 20;
-        yield grantBonusCoins(session, userId, rewardAmount, reward_interface_1.TransactionSource.DAILY_CHECK_IN, `Day ${currentStreak} Check-in`);
-        progress.dailyStreak = currentStreak;
-        progress.lastCheckInDate = todayUTC;
         yield progress.save({ session });
         yield session.commitTransaction();
         session.endSession();
-        return { rewardAmount, currentStreak };
+        return {
+            success: true,
+            coinsEarned: rewardCoins,
+            streakDay: currentDay,
+            nextStreakDay: progress.checkInStreak.currentDay
+        };
     }
     catch (error) {
         yield session.abortTransaction();
@@ -173,13 +235,11 @@ const claimDailyCheckIn = (userId) => __awaiter(void 0, void 0, void 0, function
         throw error;
     }
 });
-const claimWatchAdReward = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+const claimWatchAdReward = (ownerQuery) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
         const today = new Date();
         const todayUTC = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
         let lastAdDateUTC = null;
@@ -194,7 +254,7 @@ const claimWatchAdReward = (userId) => __awaiter(void 0, void 0, void 0, functio
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Maximum ad rewards reached for today');
         }
         const rewardAmount = reward_constant_1.REWARD_CONFIG.WATCH_AD.REWARD_PER_AD;
-        yield grantBonusCoins(session, userId, rewardAmount, reward_interface_1.TransactionSource.WATCH_AD, `Watched Ad`);
+        yield grantBonusCoins(session, ownerQuery, rewardAmount, reward_interface_1.TransactionSource.WATCH_AD, `Watched Ad`);
         progress.adsWatchedToday += 1;
         progress.lastAdWatchDate = todayUTC;
         yield progress.save({ session });
@@ -208,18 +268,16 @@ const claimWatchAdReward = (userId) => __awaiter(void 0, void 0, void 0, functio
         throw error;
     }
 });
-const claimNotificationReward = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+const claimNotificationReward = (ownerQuery) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
         if (progress.hasClaimedNotificationReward) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Notification reward already claimed');
         }
         const rewardAmount = reward_constant_1.REWARD_CONFIG.ENABLE_NOTIFICATION;
-        yield grantBonusCoins(session, userId, rewardAmount, reward_interface_1.TransactionSource.ENABLE_NOTIFICATION, `Enabled Notifications`);
+        yield grantBonusCoins(session, ownerQuery, rewardAmount, reward_interface_1.TransactionSource.ENABLE_NOTIFICATION, `Enabled Notifications`);
         progress.hasClaimedNotificationReward = true;
         yield progress.save({ session });
         yield session.commitTransaction();
@@ -232,26 +290,41 @@ const claimNotificationReward = (userId) => __awaiter(void 0, void 0, void 0, fu
         throw error;
     }
 });
-const claimSocialReward = (userId, platform) => __awaiter(void 0, void 0, void 0, function* () {
+const claimSocialReward = (ownerQuery, platform) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
         if (platform === 'facebook' && progress.hasClaimedFacebookReward) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Facebook reward already claimed');
         }
         if (platform === 'instagram' && progress.hasClaimedInstagramReward) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Instagram reward already claimed');
         }
-        const rewardAmount = platform === 'facebook' ? reward_constant_1.REWARD_CONFIG.FOLLOW_FACEBOOK : reward_constant_1.REWARD_CONFIG.FOLLOW_INSTAGRAM;
-        const source = platform === 'facebook' ? reward_interface_1.TransactionSource.FOLLOW_FACEBOOK : reward_interface_1.TransactionSource.FOLLOW_INSTAGRAM;
-        yield grantBonusCoins(session, userId, rewardAmount, source, `Followed on ${platform}`);
+        if (platform === 'youtube' && progress.hasClaimedYoutubeReward) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'YouTube reward already claimed');
+        }
+        let rewardAmount = 0;
+        let source;
+        if (platform === 'facebook') {
+            rewardAmount = reward_constant_1.REWARD_CONFIG.FOLLOW_FACEBOOK;
+            source = reward_interface_1.TransactionSource.FOLLOW_FACEBOOK;
+        }
+        else if (platform === 'instagram') {
+            rewardAmount = reward_constant_1.REWARD_CONFIG.FOLLOW_INSTAGRAM;
+            source = reward_interface_1.TransactionSource.FOLLOW_INSTAGRAM;
+        }
+        else {
+            rewardAmount = reward_constant_1.REWARD_CONFIG.FOLLOW_YOUTUBE;
+            source = reward_interface_1.TransactionSource.FOLLOW_YOUTUBE;
+        }
+        yield grantBonusCoins(session, ownerQuery, rewardAmount, source, `Followed on ${platform}`);
         if (platform === 'facebook')
             progress.hasClaimedFacebookReward = true;
         if (platform === 'instagram')
             progress.hasClaimedInstagramReward = true;
+        if (platform === 'youtube')
+            progress.hasClaimedYoutubeReward = true;
         yield progress.save({ session });
         yield session.commitTransaction();
         session.endSession();
@@ -263,22 +336,23 @@ const claimSocialReward = (userId, platform) => __awaiter(void 0, void 0, void 0
         throw error;
     }
 });
-const claimBindEmailReward = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+const claimBindEmailReward = (ownerQuery) => __awaiter(void 0, void 0, void 0, function* () {
+    if (ownerQuery.guestId) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Please register an account to claim the bind email reward');
+    }
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
         if (progress.hasClaimedBindEmailReward) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Bind Email reward already claimed');
         }
-        const user = yield user_model_1.User.findById(userId);
+        const user = yield user_model_1.User.findById(ownerQuery.user);
         if (!user || !user.email || !user.isVerified) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Email is not verified or bound');
         }
         const rewardAmount = reward_constant_1.REWARD_CONFIG.BIND_EMAIL;
-        yield grantBonusCoins(session, userId, rewardAmount, reward_interface_1.TransactionSource.BIND_EMAIL, `Bound Email`);
+        yield grantBonusCoins(session, ownerQuery, rewardAmount, reward_interface_1.TransactionSource.BIND_EMAIL, `Bound Email`);
         progress.hasClaimedBindEmailReward = true;
         yield progress.save({ session });
         yield session.commitTransaction();
@@ -291,18 +365,16 @@ const claimBindEmailReward = (userId) => __awaiter(void 0, void 0, void 0, funct
         throw error;
     }
 });
-const claimLoginReward = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+const claimLoginReward = (ownerQuery) => __awaiter(void 0, void 0, void 0, function* () {
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
         if (progress.hasClaimedLoginReward) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Login reward already claimed');
         }
         const rewardAmount = reward_constant_1.REWARD_CONFIG.LOGIN_REWARD;
-        yield grantBonusCoins(session, userId, rewardAmount, reward_interface_1.TransactionSource.LOGIN_REWARD, `Initial Login Reward`);
+        yield grantBonusCoins(session, ownerQuery, rewardAmount, reward_interface_1.TransactionSource.LOGIN_REWARD, `Initial Login Reward`);
         progress.hasClaimedLoginReward = true;
         yield progress.save({ session });
         yield session.commitTransaction();
@@ -315,24 +387,25 @@ const claimLoginReward = (userId) => __awaiter(void 0, void 0, void 0, function*
         throw error;
     }
 });
-const claimProfileCompletionReward = (userId) => __awaiter(void 0, void 0, void 0, function* () {
+const claimProfileCompletionReward = (ownerQuery) => __awaiter(void 0, void 0, void 0, function* () {
+    if (ownerQuery.guestId) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Please register an account to claim the profile completion reward');
+    }
     const session = yield (0, mongoose_1.startSession)();
     session.startTransaction();
     try {
-        const progress = yield reward_model_1.UserRewardProgress.findOne({ user: userId }).session(session);
-        if (!progress)
-            throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Reward progress not found');
+        const { progress } = yield getOrCreateWalletAndProgress(ownerQuery, session);
         if (progress.hasClaimedProfileReward) {
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Profile completion reward already claimed');
         }
-        const user = yield user_model_1.User.findById(userId);
+        const user = yield user_model_1.User.findById(ownerQuery.user);
         if (!user)
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
         const isProfileComplete = user.name && user.email && user.profileImage;
         if (!isProfileComplete)
             throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Profile is not 100% complete');
         const rewardAmount = reward_constant_1.REWARD_CONFIG.PROFILE_COMPLETION;
-        yield grantBonusCoins(session, userId, rewardAmount, reward_interface_1.TransactionSource.PROFILE_COMPLETION, `Profile Completed`);
+        yield grantBonusCoins(session, ownerQuery, rewardAmount, reward_interface_1.TransactionSource.PROFILE_COMPLETION, `Profile Completed`);
         progress.hasClaimedProfileReward = true;
         yield progress.save({ session });
         yield session.commitTransaction();

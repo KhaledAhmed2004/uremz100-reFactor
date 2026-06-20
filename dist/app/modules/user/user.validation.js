@@ -12,43 +12,10 @@ const createUserZodSchema = zod_1.z.object({
             .string({ required_error: 'Email is required' })
             .email('Invalid email address')
             .toLowerCase(),
-        role: zod_1.z.enum([user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.JUMMAH], { required_error: 'Role is required' }),
-        revertDate: zod_1.z.string().datetime().optional(),
-        dateOfBirth: zod_1.z.string({ required_error: 'Date of birth is required' }).datetime().refine((dob) => {
-            const birthDate = new Date(dob);
-            const today = new Date();
-            let age = today.getFullYear() - birthDate.getFullYear();
-            const m = today.getMonth() - birthDate.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-                age--;
-            }
-            return age >= 16;
-        }, 'Minimum age is 16 years'),
+        role: zod_1.z.enum([user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER]).optional().default(user_1.USER_ROLES.USER),
         password: zod_1.z.string().optional(),
-        profileImage: zod_1.z.string().optional(),
-        verificationImage: zod_1.z.string().optional(),
-        verificationVideo: zod_1.z.string().optional(),
         googleId: zod_1.z.string().optional(),
         appleId: zod_1.z.string().optional(),
-        aboutMe: zod_1.z.string().optional(),
-        revertStory: zod_1.z.string().optional(),
-        interests: zod_1.z
-            .preprocess((v) => {
-            if (typeof v === 'string') {
-                try {
-                    return JSON.parse(v);
-                }
-                catch (_a) {
-                    return v;
-                }
-            }
-            return v;
-        }, zod_1.z.array(zod_1.z.string()))
-            .optional(),
-        // Cloudflare Turnstile token from the client widget. Verified by
-        // the `verifyCaptcha` middleware downstream. Optional in the schema
-        // so dev mode (TURNSTILE_SECRET unset) works without it; the
-        // middleware no-ops in that case.
         captchaToken: zod_1.z.string().optional(),
     })
         .strict()
@@ -65,24 +32,15 @@ const createUserZodSchema = zod_1.z.object({
                 });
             }
         }
-        if (data.role === user_1.USER_ROLES.BROTHER || data.role === user_1.USER_ROLES.SISTER) {
-            if (!data.revertDate) {
-                ctx.addIssue({
-                    code: zod_1.z.ZodIssueCode.custom,
-                    message: 'Revert date is required',
-                    path: ['revertDate']
-                });
-            }
-        }
     }),
 });
 const updateUserZodSchema = zod_1.z.object({
     body: zod_1.z.object({
         name: zod_1.z.string().optional(),
-        aboutMe: zod_1.z.string().optional(),
-        revertStory: zod_1.z.string().optional(),
-        revertDate: zod_1.z.string().datetime().optional(),
-        interests: zod_1.z
+        gender: zod_1.z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+        dateOfBirth: zod_1.z.string().datetime().optional(),
+        profileImage: zod_1.z.string().optional(),
+        location: zod_1.z
             .preprocess((v) => {
             if (typeof v === 'string') {
                 try {
@@ -93,23 +51,11 @@ const updateUserZodSchema = zod_1.z.object({
                 }
             }
             return v;
-        }, zod_1.z.array(zod_1.z.string()))
-            .optional(),
-        profileImage: zod_1.z.string().optional(),
-        location: zod_1.z.union([
-            zod_1.z.object({
-                country: zod_1.z.string().optional(),
-                city: zod_1.z.string().optional(),
-                latitude: zod_1.z.preprocess((v) => (v === '' ? undefined : Number(v)), zod_1.z.number().min(-90).max(90)),
-                longitude: zod_1.z.preprocess((v) => (v === '' ? undefined : Number(v)), zod_1.z.number().min(-180).max(180))
-            }),
-            zod_1.z.object({
-                country: zod_1.z.string().optional(),
-                city: zod_1.z.string().optional(),
-                type: zod_1.z.literal('Point'),
-                coordinates: zod_1.z.tuple([zod_1.z.number(), zod_1.z.number()])
-            })
-        ]).optional()
+        }, zod_1.z.object({
+            country: zod_1.z.string().optional(),
+            city: zod_1.z.string().optional()
+        }))
+            .optional()
     }),
 });
 exports.UserValidation = {
@@ -122,8 +68,7 @@ exports.UserValidation = {
         body: zod_1.z.object({
             status: zod_1.z.enum([user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.REJECTED, user_1.USER_STATUS.SUSPENDED], {
                 required_error: 'status is required',
-            }),
-            rejectionReason: zod_1.z.string().optional()
+            })
         }),
     }),
     updateUserReviewZodSchema: zod_1.z.object({
@@ -133,17 +78,8 @@ exports.UserValidation = {
         body: zod_1.z.object({
             status: zod_1.z.enum([user_1.USER_STATUS.ACTIVE, user_1.USER_STATUS.REJECTED], {
                 required_error: 'Status is required (ACTIVE or REJECTED)',
-            }),
-            reason: zod_1.z.string().optional(),
-        }).refine((data) => {
-            if (data.status === user_1.USER_STATUS.REJECTED && !data.reason) {
-                return false;
-            }
-            return true;
-        }, {
-            message: 'Reason is required when status is REJECTED',
-            path: ['reason'],
-        }),
+            })
+        })
     }),
     adminUpdateUserZodSchema: zod_1.z.object({
         params: zod_1.z.object({
@@ -151,6 +87,7 @@ exports.UserValidation = {
         }),
         body: zod_1.z.object({
             name: zod_1.z.string().optional(),
+            gender: zod_1.z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
             email: zod_1.z.string().email('Invalid email address').toLowerCase().optional(),
             dateOfBirth: zod_1.z.string().datetime().optional(),
             status: zod_1.z.enum([
@@ -162,14 +99,10 @@ exports.UserValidation = {
             ]).optional(),
             role: zod_1.z.enum([
                 user_1.USER_ROLES.SUPER_ADMIN,
-                user_1.USER_ROLES.BROTHER,
-                user_1.USER_ROLES.SISTER,
-                user_1.USER_ROLES.JUMMAH
+                user_1.USER_ROLES.ADMIN,
+                user_1.USER_ROLES.USER
             ]).optional(),
-            revertDate: zod_1.z.string().datetime().optional(),
-            aboutMe: zod_1.z.string().optional(),
-            revertStory: zod_1.z.string().optional(),
-            interests: zod_1.z
+            location: zod_1.z
                 .preprocess((v) => {
                 if (typeof v === 'string') {
                     try {
@@ -180,22 +113,11 @@ exports.UserValidation = {
                     }
                 }
                 return v;
-            }, zod_1.z.array(zod_1.z.string()))
-                .optional(),
-            location: zod_1.z.union([
-                zod_1.z.object({
-                    country: zod_1.z.string().optional(),
-                    city: zod_1.z.string().optional(),
-                    latitude: zod_1.z.preprocess((v) => (v === '' ? undefined : Number(v)), zod_1.z.number().min(-90).max(90)).optional(),
-                    longitude: zod_1.z.preprocess((v) => (v === '' ? undefined : Number(v)), zod_1.z.number().min(-180).max(180)).optional()
-                }),
-                zod_1.z.object({
-                    country: zod_1.z.string().optional(),
-                    city: zod_1.z.string().optional(),
-                    type: zod_1.z.literal('Point'),
-                    coordinates: zod_1.z.tuple([zod_1.z.number(), zod_1.z.number()])
-                })
-            ]).optional()
+            }, zod_1.z.object({
+                country: zod_1.z.string().optional(),
+                city: zod_1.z.string().optional()
+            }))
+                .optional()
         }),
     }),
     getUserDetailsZodSchema: zod_1.z.object({
@@ -242,21 +164,13 @@ exports.UserValidation = {
             token: zod_1.z
                 .string({ required_error: 'Re-verification token is required' })
                 .regex(/^[0-9a-fA-F]{64}$/, 'Invalid re-verification token format'),
-            // verificationImage / verificationVideo are set on req.body by
-            // fileHandler after upload. Both required for a fresh review.
-            verificationImage: zod_1.z
-                .string({ required_error: 'verificationImage is required' })
-                .min(1, 'verificationImage is required'),
-            verificationVideo: zod_1.z
-                .string({ required_error: 'verificationVideo is required' })
-                .min(1, 'verificationVideo is required'),
         }),
     }),
     getAllUserRolesZodSchema: zod_1.z.object({
         query: zod_1.z.object({
             searchTerm: zod_1.z.string().optional(),
             email: zod_1.z.string().optional(),
-            role: zod_1.z.enum([user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.JUMMAH]).optional(),
+            role: zod_1.z.enum([user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER]).optional(),
             status: zod_1.z.enum([
                 user_1.USER_STATUS.PENDING,
                 user_1.USER_STATUS.ACTIVE,

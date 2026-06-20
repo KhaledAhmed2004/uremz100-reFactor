@@ -34,5 +34,6 @@ router.get('/transactions', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), 
 router.patch('/users/:userId/status', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(user_validation_1.UserValidation.updateUserStatusZodSchema), user_controller_1.UserController.updateUserStatus);
 // Subscriptions Management
 router.get('/subscriptions/stats', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getSubscriptionsStats);
+router.patch('/content/:id/boost', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.patchContentBoost);
 router.get('/subscriptions', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), admin_controller_1.AdminController.getAdminSubscriptions);
 exports.AdminRoutes = router;

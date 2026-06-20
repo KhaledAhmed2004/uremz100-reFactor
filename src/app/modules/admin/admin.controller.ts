@@ -110,69 +110,7 @@ const getMovieProfile = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const getMovieAnalyticsOverview = catchAsync(async (req: Request, res: Response) => {
-  const { movieId } = req.params;
-  const result = await AdminService.getMovieAnalyticsOverviewData(movieId);
-  
-  if (!result) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Movie analytics not found');
-  }
-
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: 'Movie analytics overview retrieved',
-    data: result,
-  });
-});
-
-const getMovieAnalyticsEngagement = catchAsync(async (req: Request, res: Response) => {
-  const { movieId } = req.params;
-  const result = await AdminService.getMovieAnalyticsEngagementData(movieId);
-  
-  if (!result) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Movie analytics not found');
-  }
-
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: 'Movie analytics engagement retrieved',
-    data: result,
-  });
-});
-
-const getMovieAnalyticsAudience = catchAsync(async (req: Request, res: Response) => {
-  const { movieId } = req.params;
-  const result = await AdminService.getMovieAnalyticsAudienceData(movieId);
-  
-  if (!result) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Movie analytics not found');
-  }
-
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: 'Movie analytics audience retrieved',
-    data: result,
-  });
-});
-
-const getMovieAnalyticsRevenue = catchAsync(async (req: Request, res: Response) => {
-  const { movieId } = req.params;
-  const result = await AdminService.getMovieAnalyticsRevenueData(movieId);
-  
-  if (!result) {
-    throw new ApiError(StatusCodes.NOT_FOUND, 'Movie analytics not found');
-  }
-
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: 'Movie analytics revenue retrieved',
-    data: result,
-  });
-});
+// Methods moved to ContentController
 
 const patchContentBoost = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -205,9 +143,5 @@ export const AdminController = {
   getRevenueStats,
   getTransactions,
   getMovieProfile,
-  getMovieAnalyticsOverview,
-  getMovieAnalyticsEngagement,
-  getMovieAnalyticsAudience,
-  getMovieAnalyticsRevenue,
   patchContentBoost,
 };

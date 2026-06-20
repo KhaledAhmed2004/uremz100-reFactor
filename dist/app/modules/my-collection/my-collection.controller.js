@@ -44,6 +44,25 @@ const removeFromCollection = (0, catchAsync_1.default)((req, res) => __awaiter(v
         data: null,
     });
 }));
+const removeFromCollectionBulk = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const guestId = req.guestId;
+    const { itemIds } = req.body;
+    const deletedCount = yield my_collection_service_1.MyCollectionService.removeFromCollectionBulkFromDB({
+        userId: user === null || user === void 0 ? void 0 : user.id,
+        guestId,
+        itemIds,
+    });
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: `${deletedCount} items removed from collection successfully`,
+        data: {
+            deletedCount,
+            itemIds,
+        },
+    });
+}));
 const getMyCollection = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
     const guestId = req.guestId;
@@ -52,12 +71,13 @@ const getMyCollection = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
         statusCode: http_status_1.default.OK,
         success: true,
         message: 'My collection retrieved successfully',
-        meta: result.pagination,
+        meta: result.pagination || undefined,
         data: result.data,
     });
 }));
 exports.MyCollectionController = {
     addToCollection,
     removeFromCollection,
+    removeFromCollectionBulk,
     getMyCollection,
 };

@@ -67,7 +67,7 @@ beforeEach(async () => {
 describe('Home Module E2E Tests', () => {
   describe('Get Home Content (GET /api/v1/home/content)', () => {
     it('successfully retrieves popular sections using ?tab=popular', async () => {
-      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { token } = await createAuthUser(USER_ROLES.USER);
       
       // 1. Trending Movie (views > 100)
       await Content.create({
@@ -185,7 +185,7 @@ describe('Home Module E2E Tests', () => {
       expect(continueWatchingSection.items[0].title).toBe('Guest Top Pick');
     });
     it('successfully retrieves new sections using ?tab=new', async () => {
-      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { token } = await createAuthUser(USER_ROLES.USER);
 
       await Content.create({
         title: 'New Coming Soon',
@@ -229,7 +229,7 @@ describe('Home Module E2E Tests', () => {
     });
 
     it('successfully retrieves vip sections using ?tab=vip', async () => {
-      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { token } = await createAuthUser(USER_ROLES.USER);
 
       await Content.create({
         title: 'VIP Movie',
@@ -259,7 +259,7 @@ describe('Home Module E2E Tests', () => {
     });
 
     it('successfully retrieves ranking sections using ?tab=ranking&filter=weekly', async () => {
-      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { token } = await createAuthUser(USER_ROLES.USER);
 
       await Content.create({
         title: 'Weekly Hit Movie',
@@ -288,7 +288,7 @@ describe('Home Module E2E Tests', () => {
     });
 
     it('returns an empty sections array when there is no content matching the tab', async () => {
-      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { token } = await createAuthUser(USER_ROLES.USER);
 
       // We do NOT create any Content here, so the DB is empty for this test
 

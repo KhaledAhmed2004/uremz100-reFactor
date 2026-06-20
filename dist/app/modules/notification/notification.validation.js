@@ -14,7 +14,7 @@ const sendNotification = zod_1.z.object({
             .string({ required_error: 'Message is required' })
             .min(1)
             .max(5000),
-        audience: zod_1.z.enum(['ALL', user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER], {
+        audience: zod_1.z.enum(['ALL', user_1.USER_ROLES.USER, user_1.USER_ROLES.USER], {
             required_error: 'Audience is required',
         }),
     }),

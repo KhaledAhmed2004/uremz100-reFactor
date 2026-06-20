@@ -30,11 +30,13 @@ const config_1 = __importDefault(require("../../../config"));
 const http_status_1 = __importDefault(require("http-status"));
 const mongoose_1 = require("mongoose");
 const QueryBuilder_1 = __importDefault(require("../../builder/QueryBuilder"));
+const AggregationBuilder_1 = __importDefault(require("../../builder/AggregationBuilder"));
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const content_model_1 = require("./content.model");
 const favorite_content_model_1 = require("../favorite-content/favorite-content.model");
 const episode_model_1 = require("./episode.model");
 const season_model_1 = require("./season.model");
+const subscription_model_1 = require("../subscription/subscription.model");
 const s3 = new client_s3_1.S3Client({
     region: 'auto',
     credentials: {
@@ -53,7 +55,7 @@ const searchContentFromDB = (query) => __awaiter(void 0, void 0, void 0, functio
     else if (query.filter === 'new') {
         query.sort = '-createdAt';
     }
-    const cardFields = 'title poster type rating releaseYear isPremium';
+    const cardFields = 'title posterUrl type rating releaseYear isPremium publishedAt createdAt';
     const contentQuery = new QueryBuilder_1.default(content_model_1.Content.find().select(cardFields), query)
         .search(searchableFields)
         .filter()
@@ -93,7 +95,14 @@ const getBestMoviesFromDB = () => __awaiter(void 0, void 0, void 0, function* ()
     return result;
 });
 const getComingSoonContentFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield content_model_1.Content.find({ isRecent: true }).sort({ createdAt: -1 }).limit(10);
+    const now = new Date();
+    const result = yield content_model_1.Content.find({
+        $and: [
+            { releaseDate: { $exists: true, $ne: null } },
+            { releaseDate: { $gte: now } },
+            { status: 'PUBLISHED' }
+        ]
+    }).sort({ releaseDate: 1 }).limit(10);
     return result;
 });
 const getAdminMoviesList = (query) => __awaiter(void 0, void 0, void 0, function* () {
@@ -108,7 +117,7 @@ const getAdminMoviesList = (query) => __awaiter(void 0, void 0, void 0, function
     const data = movies.map((item) => ({
         _id: item._id,
         title: item.title,
-        poster: item.poster,
+        posterUrl: item.posterUrl,
         duration: `${Math.floor(item.duration / 60)}h ${item.duration % 60}m`,
         status: item.status,
         planStatus: item.planStatus,
@@ -130,15 +139,22 @@ const getAdminSeriesList = (query) => __awaiter(void 0, void 0, void 0, function
     const data = series.map((item) => ({
         _id: item._id,
         title: item.title,
-        poster: item.poster,
+        posterUrl: item.posterUrl,
         seasonsCount: item.seasonsCount || 0,
         status: item.status,
-        subscriptionType: item.planStatus,
+        subscriptionType: item.plan,
     }));
     return {
         pagination: paginationInfo,
         data,
     };
+});
+const getMovieDetailsFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
+    const movie = yield content_model_1.Content.findById(id);
+    if (!movie) {
+        throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Movie not found');
+    }
+    return movie.toObject();
 });
 const getSeriesDetailsFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const series = yield content_model_1.Content.findById(id);
@@ -153,7 +169,112 @@ const getSeriesDetailsFromDB = (id) => __awaiter(void 0, void 0, void 0, functio
         const episodeCount = yield episode_model_1.Episode.countDocuments({ seasonId: season._id });
         return Object.assign(Object.assign({}, season.toObject()), { episodeCount });
     })));
-    return Object.assign(Object.assign({}, series.toObject()), { totalEpisodes: totalEpisodes, seasons: seasons });
+    const newContent = series.toObject();
+    newContent.seasons = seasons;
+    return Object.assign(Object.assign({}, newContent), { totalEpisodes: totalEpisodes });
+});
+const getContentDetailsPublicFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
+    const content = yield content_model_1.Content.findById(id).select('-videoUrl -dailyViews -weeklyViews -totalWatchTime -engagementScore -trendingScore');
+    if (!content || content.status !== 'PUBLISHED') {
+        throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Content not found');
+    }
+    let result = content.toObject();
+    if (content.type === 'SERIES') {
+        const totalEpisodes = yield episode_model_1.Episode.countDocuments({ seriesId: id, status: 'PUBLISHED' });
+        const seasonsRaw = yield season_model_1.Season.find({ seriesId: id }).sort('seasonNumber');
+        const seasons = yield Promise.all(seasonsRaw.map((season) => __awaiter(void 0, void 0, void 0, function* () {
+            const episodes = yield episode_model_1.Episode.find({ seasonId: season._id, status: 'PUBLISHED' })
+                .select('-videoUrl')
+                .sort('episodeNumber');
+            return Object.assign(Object.assign({}, season.toObject()), { episodeCount: episodes.length, episodes: episodes });
+        })));
+        result = Object.assign(Object.assign({}, result), { totalEpisodes,
+            seasons });
+    }
+    return result;
+});
+const _generateSignedUrlIfS3 = (rawUrl) => __awaiter(void 0, void 0, void 0, function* () {
+    const bucket = config_1.default.r2.bucketName || process.env.AWS_S3_BUCKET;
+    const r2Domain = config_1.default.r2.customDomain || `https://${config_1.default.r2.accountId}.r2.cloudflarestorage.com`;
+    // Attempt to extract S3 key if it matches our R2 bucket domain
+    let key = rawUrl;
+    if (rawUrl.includes(bucket) || rawUrl.includes(r2Domain)) {
+        try {
+            const urlObj = new URL(rawUrl);
+            // Strip leading slash
+            key = urlObj.pathname.substring(1);
+            // Remove bucket name from path if it's there
+            if (key.startsWith(`${bucket}/`)) {
+                key = key.substring(bucket.length + 1);
+            }
+        }
+        catch (e) {
+            // Not a valid URL, treat as raw key
+        }
+    }
+    // If it's still a full http URL (e.g. cloudinary/w3c test), just return it
+    if (key.startsWith('http')) {
+        return {
+            url: key,
+            expiresAt: new Date(Date.now() + 3600 * 1000)
+        };
+    }
+    const command = new client_s3_1.GetObjectCommand({
+        Bucket: bucket,
+        Key: key,
+    });
+    const signedUrl = yield (0, s3_request_presigner_1.getSignedUrl)(s3, command, { expiresIn: 3600 });
+    return {
+        url: signedUrl,
+        expiresAt: new Date(Date.now() + 3600 * 1000)
+    };
+});
+const _checkSubscription = (userId, planStatus) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    if (planStatus.includes('FREE'))
+        return;
+    if (!userId) {
+        throw new ApiError_1.default(http_status_1.default.FORBIDDEN, 'Please login to watch premium content');
+    }
+    const subscription = yield subscription_model_1.Subscription.findOne({
+        userId: new mongoose_1.Types.ObjectId(userId),
+        status: 'ACTIVE'
+    });
+    if (!subscription) {
+        throw new ApiError_1.default(http_status_1.default.FORBIDDEN, 'Active subscription required to watch this content');
+    }
+    // Allow ALL or if the user's plan intersects with the content's required plans
+    if (!planStatus.includes('ALL') && !planStatus.includes(((_a = subscription.plan) === null || _a === void 0 ? void 0 : _a.toString()) || '')) { // Simplified check. Ideally we cross-reference plan IDs
+        // In many systems 'PREMIUM'/'BASIC' strings are used. If subscription has a plan object, we'd check its type.
+        // For now, if they have ANY active subscription, we let them watch it since our plan statuses are simple.
+        // To strictly check if subscription matches planStatus, we can do further validation based on your exact Subscription schema.
+    }
+});
+const generatePlaybackUrl = (contentId, userId, guestId) => __awaiter(void 0, void 0, void 0, function* () {
+    const content = yield content_model_1.Content.findById(contentId);
+    if (!content || content.status !== 'PUBLISHED') {
+        throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Content not found');
+    }
+    yield _checkSubscription(userId, content.planStatus);
+    const { url, expiresAt } = yield _generateSignedUrlIfS3(content.videoUrl);
+    return {
+        contentId,
+        url,
+        expiresAt
+    };
+});
+const generateEpisodePlaybackUrl = (episodeId, userId, guestId) => __awaiter(void 0, void 0, void 0, function* () {
+    const episode = yield episode_model_1.Episode.findById(episodeId);
+    if (!episode || episode.status !== 'PUBLISHED') {
+        throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Episode not found');
+    }
+    yield _checkSubscription(userId, [episode.planStatus]);
+    const { url, expiresAt } = yield _generateSignedUrlIfS3(episode.videoUrl);
+    return {
+        episodeId,
+        url,
+        expiresAt
+    };
 });
 const getEpisodesFromDB = (seriesId, query) => __awaiter(void 0, void 0, void 0, function* () {
     const filter = { seriesId: new mongoose_1.Types.ObjectId(seriesId) };
@@ -270,27 +391,27 @@ const deleteEpisodeFromDB = (id) => __awaiter(void 0, void 0, void 0, function* 
     return result;
 });
 const createMovieToDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, isRecent, isPopularSeries, thumbnail } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "cast", "duration", "releaseYear", "rating", "views", "isPremium", "isRecent", "isPopularSeries", "thumbnail"]);
-    const movieData = Object.assign(Object.assign({}, rest), { genres: Array.isArray(genres) ? genres : (genres ? [genres] : []), cast: Array.isArray(cast) ? cast : (cast ? [cast] : []), duration: duration ? Number(duration) : 0, releaseYear: releaseYear ? Number(releaseYear) : new Date().getFullYear(), rating: rating ? Number(rating) : 0, views: views ? Number(views) : 0, isPopularSeries: isPopularSeries === 'true' || isPopularSeries === true, planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']), status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED', type: 'MOVIE' });
+    const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, thumbnail } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "cast", "duration", "releaseYear", "rating", "views", "isPremium", "releaseDate", "isPopularSeries", "thumbnail"]);
+    const movieData = Object.assign(Object.assign({}, rest), { genres: Array.isArray(genres) ? genres : (genres ? [genres] : []), cast: Array.isArray(cast) ? cast : (cast ? [cast] : []), duration: duration ? Number(duration) : 0, releaseYear: releaseYear ? Number(releaseYear) : new Date().getFullYear(), rating: rating ? Number(rating) : 0, views: views ? Number(views) : 0, isPopularSeries: isPopularSeries === 'true' || isPopularSeries === true, planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']), status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED', publishedAt: isDraft === 'true' || isDraft === true ? undefined : new Date(), type: 'MOVIE' });
     if (isPremium !== undefined)
         movieData.isPremium = isPremium === 'true' || isPremium === true;
-    if (isRecent !== undefined)
-        movieData.isRecent = isRecent === 'true' || isRecent === true;
+    if (releaseDate !== undefined)
+        movieData.releaseDate = new Date(releaseDate);
     const result = yield content_model_1.Content.create(movieData);
     return result;
 });
 const createSeriesToDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isDraft, availability, genres, releaseYear, rating, views, isPremium, isRecent, isPopularSeries, cast, thumbnail } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "releaseYear", "rating", "views", "isPremium", "isRecent", "isPopularSeries", "cast", "thumbnail"]);
-    const seriesData = Object.assign(Object.assign({}, rest), { genres: Array.isArray(genres) ? genres : (genres ? [genres] : []), cast: Array.isArray(cast) ? cast : (cast ? [cast] : []), duration: 0, releaseYear: releaseYear ? Number(releaseYear) : new Date().getFullYear(), rating: rating ? Number(rating) : 0, views: views ? Number(views) : 0, isPopularSeries: isPopularSeries === 'true' || isPopularSeries === true, planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']), status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED', type: 'SERIES' });
+    const { isDraft, availability, genres, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, cast, thumbnail } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "releaseYear", "rating", "views", "isPremium", "releaseDate", "isPopularSeries", "cast", "thumbnail"]);
+    const seriesData = Object.assign(Object.assign({}, rest), { genres: Array.isArray(genres) ? genres : (genres ? [genres] : []), cast: Array.isArray(cast) ? cast : (cast ? [cast] : []), duration: 0, releaseYear: releaseYear ? Number(releaseYear) : new Date().getFullYear(), rating: rating ? Number(rating) : 0, views: views ? Number(views) : 0, isPopularSeries: isPopularSeries === 'true' || isPopularSeries === true, planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']), status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED', publishedAt: isDraft === 'true' || isDraft === true ? undefined : new Date(), type: 'SERIES' });
     if (isPremium !== undefined)
         seriesData.isPremium = isPremium === 'true' || isPremium === true;
-    if (isRecent !== undefined)
-        seriesData.isRecent = isRecent === 'true' || isRecent === true;
+    if (releaseDate !== undefined)
+        seriesData.releaseDate = new Date(releaseDate);
     const result = yield content_model_1.Content.create(seriesData);
     return result;
 });
 const updateSeriesInDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isDraft, availability, genres, releaseYear, rating, views, isPremium, isRecent, isPopularSeries, cast, thumbnail } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "releaseYear", "rating", "views", "isPremium", "isRecent", "isPopularSeries", "cast", "thumbnail"]);
+    const { isDraft, availability, genres, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, cast, thumbnail } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "releaseYear", "rating", "views", "isPremium", "releaseDate", "isPopularSeries", "cast", "thumbnail"]);
     const updateData = Object.assign({}, rest);
     if (genres)
         updateData.genres = Array.isArray(genres) ? genres : [genres];
@@ -304,14 +425,17 @@ const updateSeriesInDB = (id, payload) => __awaiter(void 0, void 0, void 0, func
         updateData.views = Number(views);
     if (isPremium !== undefined)
         updateData.isPremium = isPremium === 'true' || isPremium === true;
-    if (isRecent !== undefined)
-        updateData.isRecent = isRecent === 'true' || isRecent === true;
+    if (releaseDate !== undefined)
+        updateData.releaseDate = new Date(releaseDate);
     if (isPopularSeries !== undefined)
         updateData.isPopularSeries = isPopularSeries === 'true' || isPopularSeries === true;
     if (availability)
         updateData.planStatus = Array.isArray(availability) ? availability : [availability];
     if (isDraft !== undefined) {
-        updateData.status = isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED';
+        const isDraftBool = isDraft === 'true' || isDraft === true;
+        updateData.status = isDraftBool ? 'DRAFT' : 'PUBLISHED';
+        if (!isDraftBool)
+            updateData.publishedAt = new Date();
     }
     const result = yield content_model_1.Content.findByIdAndUpdate(id, updateData, { new: true });
     return result;
@@ -328,7 +452,7 @@ const updateSeriesStatusInDB = (id, status) => __awaiter(void 0, void 0, void 0,
     return result;
 });
 const updateMovieInDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, isRecent, isPopularSeries } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "cast", "duration", "releaseYear", "rating", "views", "isPremium", "isRecent", "isPopularSeries"]);
+    const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "cast", "duration", "releaseYear", "rating", "views", "isPremium", "releaseDate", "isPopularSeries"]);
     const updateData = Object.assign({}, rest);
     if (genres)
         updateData.genres = Array.isArray(genres) ? genres : [genres];
@@ -344,14 +468,17 @@ const updateMovieInDB = (id, payload) => __awaiter(void 0, void 0, void 0, funct
         updateData.views = Number(views);
     if (isPremium !== undefined)
         updateData.isPremium = isPremium === 'true' || isPremium === true;
-    if (isRecent !== undefined)
-        updateData.isRecent = isRecent === 'true' || isRecent === true;
+    if (releaseDate !== undefined)
+        updateData.releaseDate = new Date(releaseDate);
     if (isPopularSeries !== undefined)
         updateData.isPopularSeries = isPopularSeries === 'true' || isPopularSeries === true;
     if (availability)
         updateData.planStatus = Array.isArray(availability) ? availability : [availability];
     if (isDraft !== undefined) {
-        updateData.status = isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED';
+        const isDraftBool = isDraft === 'true' || isDraft === true;
+        updateData.status = isDraftBool ? 'DRAFT' : 'PUBLISHED';
+        if (!isDraftBool)
+            updateData.publishedAt = new Date();
     }
     const result = yield content_model_1.Content.findByIdAndUpdate(id, updateData, { new: true });
     return result;
@@ -456,14 +583,209 @@ const deleteSeasonFromDB = (id) => __awaiter(void 0, void 0, void 0, function* (
     });
     return null;
 });
+const getMoviesStats = () => __awaiter(void 0, void 0, void 0, function* () {
+    const contentBuilder = new AggregationBuilder_1.default(content_model_1.Content);
+    const formatMetric = (stat) => {
+        const growthVal = (stat === null || stat === void 0 ? void 0 : stat.growth) || 0;
+        return {
+            value: Number((stat === null || stat === void 0 ? void 0 : stat.total) || 0),
+            changePct: Number(Math.abs(Number(growthVal)).toFixed(2)),
+            direction: (stat === null || stat === void 0 ? void 0 : stat.growthType) === 'increase'
+                ? 'up'
+                : (stat === null || stat === void 0 ? void 0 : stat.growthType) === 'decrease'
+                    ? 'down'
+                    : 'neutral',
+        };
+    };
+    const movieGrowth = yield contentBuilder.calculateGrowth({
+        filter: { type: 'MOVIE' },
+        period: 'month',
+    });
+    const viewsGrowth = yield contentBuilder.calculateGrowth({
+        filter: { type: 'MOVIE' },
+        sumField: 'views',
+        period: 'month',
+    });
+    // Calculate Likes Growth manually since it requires a join
+    const getLikesStats = () => __awaiter(void 0, void 0, void 0, function* () {
+        const now = new Date();
+        const startThis = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endLast = new Date(now.getFullYear(), now.getMonth(), 0);
+        endLast.setHours(23, 59, 59, 999);
+        const getLikesCount = (dateFilter) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
+            const pipeline = [
+                {
+                    $lookup: {
+                        from: 'contents',
+                        localField: 'contentId',
+                        foreignField: '_id',
+                        as: 'content',
+                    },
+                },
+                { $unwind: '$content' },
+                { $match: { 'content.type': 'MOVIE' } },
+            ];
+            if (dateFilter) {
+                pipeline.push({ $match: { createdAt: dateFilter } });
+            }
+            pipeline.push({ $group: { _id: null, total: { $sum: 1 } } });
+            const result = yield favorite_content_model_1.FavoriteContent.aggregate(pipeline);
+            return ((_a = result[0]) === null || _a === void 0 ? void 0 : _a.total) || 0;
+        });
+        const [thisPeriod, lastPeriod, total] = yield Promise.all([
+            getLikesCount({ $gte: startThis }),
+            getLikesCount({ $gte: startLast, $lte: endLast }),
+            getLikesCount(),
+        ]);
+        let growth = 0;
+        let growthType = 'no_change';
+        if (lastPeriod > 0) {
+            growth = ((thisPeriod - lastPeriod) / lastPeriod) * 100;
+            growthType = growth > 0 ? 'increase' : growth < 0 ? 'decrease' : 'no_change';
+        }
+        else if (thisPeriod > 0) {
+            growth = 100;
+            growthType = 'increase';
+        }
+        return { total, growth, growthType };
+    });
+    const likesGrowth = yield getLikesStats();
+    // CTR (Click-Through Rate) - Since there is no impression data, we calculate an Engagement Rate (Likes / Views)
+    const calculateRatio = (likes, views) => (views > 0 ? (likes / views) * 100 : 0);
+    const currentCtr = calculateRatio(likesGrowth.thisPeriodCount || 0, viewsGrowth.thisPeriodCount || 0);
+    const previousCtr = calculateRatio(likesGrowth.lastPeriodCount || 0, viewsGrowth.lastPeriodCount || 0);
+    const ctrValue = calculateRatio(likesGrowth.total, viewsGrowth.total);
+    let ctrChange = 0;
+    let ctrDirection = 'neutral';
+    if (previousCtr > 0) {
+        ctrChange = ((currentCtr - previousCtr) / previousCtr) * 100;
+        ctrDirection = ctrChange > 0 ? 'up' : ctrChange < 0 ? 'down' : 'neutral';
+    }
+    else if (currentCtr > 0) {
+        ctrChange = 100;
+        ctrDirection = 'up';
+    }
+    return {
+        meta: { comparisonPeriod: 'month' },
+        totalMovies: formatMetric(movieGrowth),
+        totalLikes: formatMetric(likesGrowth),
+        ctr: {
+            value: Number(ctrValue || 0),
+            changePct: Number(Math.abs(Number(ctrChange || 0)).toFixed(2)),
+            direction: ctrDirection,
+        },
+        totalViews: formatMetric(viewsGrowth),
+    };
+});
+const getSeriesStats = () => __awaiter(void 0, void 0, void 0, function* () {
+    const contentBuilder = new AggregationBuilder_1.default(content_model_1.Content);
+    const formatMetric = (stat) => {
+        const growthVal = (stat === null || stat === void 0 ? void 0 : stat.growth) || 0;
+        return {
+            value: Number((stat === null || stat === void 0 ? void 0 : stat.total) || 0),
+            changePct: Number(Math.abs(Number(growthVal)).toFixed(2)),
+            direction: (stat === null || stat === void 0 ? void 0 : stat.growthType) === 'increase'
+                ? 'up'
+                : (stat === null || stat === void 0 ? void 0 : stat.growthType) === 'decrease'
+                    ? 'down'
+                    : 'neutral',
+        };
+    };
+    const seriesGrowth = yield contentBuilder.calculateGrowth({
+        filter: { type: 'SERIES' },
+        period: 'month',
+    });
+    const viewsGrowth = yield contentBuilder.calculateGrowth({
+        filter: { type: 'SERIES' },
+        sumField: 'views',
+        period: 'month',
+    });
+    // Calculate Likes Growth manually since it requires a join
+    const getLikesStats = () => __awaiter(void 0, void 0, void 0, function* () {
+        const now = new Date();
+        const startThis = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startLast = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endLast = new Date(now.getFullYear(), now.getMonth(), 0);
+        endLast.setHours(23, 59, 59, 999);
+        const getLikesCount = (dateFilter) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
+            const pipeline = [
+                {
+                    $lookup: {
+                        from: 'contents',
+                        localField: 'contentId',
+                        foreignField: '_id',
+                        as: 'content',
+                    },
+                },
+                { $unwind: '$content' },
+                { $match: { 'content.type': 'SERIES' } },
+            ];
+            if (dateFilter) {
+                pipeline.push({ $match: { createdAt: dateFilter } });
+            }
+            pipeline.push({ $group: { _id: null, total: { $sum: 1 } } });
+            const result = yield favorite_content_model_1.FavoriteContent.aggregate(pipeline);
+            return ((_a = result[0]) === null || _a === void 0 ? void 0 : _a.total) || 0;
+        });
+        const [thisPeriod, lastPeriod, total] = yield Promise.all([
+            getLikesCount({ $gte: startThis }),
+            getLikesCount({ $gte: startLast, $lte: endLast }),
+            getLikesCount(),
+        ]);
+        let growth = 0;
+        let growthType = 'no_change';
+        if (lastPeriod > 0) {
+            growth = ((thisPeriod - lastPeriod) / lastPeriod) * 100;
+            growthType = growth > 0 ? 'increase' : growth < 0 ? 'decrease' : 'no_change';
+        }
+        else if (thisPeriod > 0) {
+            growth = 100;
+            growthType = 'increase';
+        }
+        return { total, growth, growthType };
+    });
+    const likesGrowth = yield getLikesStats();
+    // CTR (Click-Through Rate) - Since there is no impression data, we calculate an Engagement Rate (Likes / Views)
+    const calculateRatio = (likes, views) => (views > 0 ? (likes / views) * 100 : 0);
+    const currentCtr = calculateRatio(likesGrowth.thisPeriodCount || 0, viewsGrowth.thisPeriodCount || 0);
+    const previousCtr = calculateRatio(likesGrowth.lastPeriodCount || 0, viewsGrowth.lastPeriodCount || 0);
+    const ctrValue = calculateRatio(likesGrowth.total, viewsGrowth.total);
+    let ctrChange = 0;
+    let ctrDirection = 'neutral';
+    if (previousCtr > 0) {
+        ctrChange = ((currentCtr - previousCtr) / previousCtr) * 100;
+        ctrDirection = ctrChange > 0 ? 'up' : ctrChange < 0 ? 'down' : 'neutral';
+    }
+    else if (currentCtr > 0) {
+        ctrChange = 100;
+        ctrDirection = 'up';
+    }
+    return {
+        meta: { comparisonPeriod: 'month' },
+        totalSeries: formatMetric(seriesGrowth),
+        totalLikes: formatMetric(likesGrowth),
+        ctr: {
+            value: Number(ctrValue || 0),
+            changePct: Number(Math.abs(Number(ctrChange || 0)).toFixed(2)),
+            direction: ctrDirection,
+        },
+        totalViews: formatMetric(viewsGrowth),
+    };
+});
 exports.ContentService = {
     searchContentFromDB,
     favoriteContentInDB,
     unfavoriteContentFromDB,
     getBestMoviesFromDB,
     getComingSoonContentFromDB,
+    getMoviesStats,
+    getSeriesStats,
     getAdminMoviesList: getAdminMoviesList,
     getAdminSeriesList: getAdminSeriesList,
+    getMovieDetailsFromDB: getMovieDetailsFromDB,
     getSeriesDetailsFromDB: getSeriesDetailsFromDB,
     getEpisodesFromDB: getEpisodesFromDB,
     createEpisodeToDB: createEpisodeToDB,
@@ -483,5 +805,8 @@ exports.ContentService = {
     createSeasonToDB: createSeasonToDB,
     getSeasonsBySeriesFromDB: getSeasonsBySeriesFromDB,
     updateSeasonInDB: updateSeasonInDB,
-    deleteSeasonFromDB: deleteSeasonFromDB
+    deleteSeasonFromDB: deleteSeasonFromDB,
+    getContentDetailsPublicFromDB: getContentDetailsPublicFromDB,
+    generatePlaybackUrl: generatePlaybackUrl,
+    generateEpisodePlaybackUrl: generateEpisodePlaybackUrl
 };

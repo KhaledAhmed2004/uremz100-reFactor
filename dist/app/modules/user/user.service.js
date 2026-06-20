@@ -31,17 +31,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -132,10 +121,6 @@ const getUserProfileFromDB = (user) => __awaiter(void 0, void 0, void 0, functio
     if (isExistUser.location) {
         isExistUser.country = isExistUser.location.country;
         isExistUser.city = isExistUser.location.city;
-        if (isExistUser.location.coordinates) {
-            isExistUser.latitude = isExistUser.location.coordinates[1];
-            isExistUser.longitude = isExistUser.location.coordinates[0];
-        }
         delete isExistUser.location;
     }
     return isExistUser;
@@ -154,12 +139,9 @@ const updateProfileToDB = (user, payload) => __awaiter(void 0, void 0, void 0, f
     if (payload.profileImage) {
         (0, unlinkFile_1.default)(isExistUser.profileImage);
     }
-    // Transform legacy location format {latitude, longitude} to GeoJSON [longitude, latitude]
+    // Transform location (legacy latitude/longitude mapping removed)
     if (payload.location) {
-        const _a = payload.location, { latitude, longitude } = _a, remainingLocation = __rest(_a, ["latitude", "longitude"]);
-        if (latitude !== undefined && longitude !== undefined) {
-            payload.location = Object.assign(Object.assign({}, remainingLocation), { type: 'Point', coordinates: [longitude, latitude] });
-        }
+        payload.location = payload.location;
     }
     const updateDoc = yield user_model_1.User.findOneAndUpdate({ _id: id }, payload, {
         new: true,
@@ -195,13 +177,8 @@ const getUserMetricsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
         period: 'month'
     });
     aggregationBuilder.reset();
-    const pendingStats = yield aggregationBuilder.calculateGrowth({
-        filter: Object.assign(Object.assign({}, excludeAdminFilter), { status: user_1.USER_STATUS.PENDING }),
-        period: 'month'
-    });
-    aggregationBuilder.reset();
-    const suspendedStats = yield aggregationBuilder.calculateGrowth({
-        filter: Object.assign(Object.assign({}, excludeAdminFilter), { status: user_1.USER_STATUS.SUSPENDED }),
+    const subscribedStats = yield aggregationBuilder.calculateGrowth({
+        filter: Object.assign(Object.assign({}, excludeAdminFilter), { subscriptionStatus: 'active' }),
         period: 'month'
     });
     const formatMetric = (stat) => ({
@@ -214,9 +191,8 @@ const getUserMetricsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
             comparisonPeriod: 'month',
         },
         totalUsers: formatMetric(totalStats),
-        activeUsers: formatMetric(activeStats),
-        pendingUsers: formatMetric(pendingStats),
-        suspendedUsers: formatMetric(suspendedStats),
+        activeUsersNewThisMonth: formatMetric(activeStats),
+        totalSubscribedNewThisMonth: formatMetric(subscribedStats),
     };
 });
 const getAllUserRolesFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
@@ -242,14 +218,52 @@ const getAllUserRolesFromDB = (query) => __awaiter(void 0, void 0, void 0, funct
     const basePipeline = [
         { $match: match },
         {
+            $lookup: {
+                from: 'wallets',
+                localField: '_id',
+                foreignField: 'user',
+                as: 'walletData'
+            }
+        },
+        {
+            $lookup: {
+                from: 'subscriptions',
+                localField: '_id',
+                foreignField: 'userId',
+                as: 'subscriptionData'
+            }
+        },
+        {
+            $addFields: {
+                subscriptionPlan: { $ifNull: [{ $arrayElemAt: ['$subscriptionData.plan', 0] }, 'FREE'] },
+                subscriptionStatus: { $ifNull: [{ $arrayElemAt: ['$subscriptionData.status', 0] }, 'INACTIVE'] },
+                coins: {
+                    $let: {
+                        vars: {
+                            wallet: { $arrayElemAt: ['$walletData', 0] }
+                        },
+                        in: {
+                            $add: [
+                                { $ifNull: ['$$wallet.goldBalance', 0] },
+                                { $reduce: {
+                                        input: { $ifNull: ['$$wallet.bonusLedger', []] },
+                                        initialValue: 0,
+                                        in: { $add: ['$$value', '$$this.amount'] }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        {
             $project: status === user_1.USER_STATUS.PENDING
                 ? {
                     _id: 1,
                     name: 1,
                     email: 1,
                     role: 1,
-                    verificationImage: 1,
-                    verificationVideo: 1,
                     createdAt: 1,
                 }
                 : {
@@ -261,6 +275,9 @@ const getAllUserRolesFromDB = (query) => __awaiter(void 0, void 0, void 0, funct
                     isVerified: 1,
                     role: 1,
                     profileImage: 1,
+                    subscriptionPlan: 1,
+                    subscriptionStatus: 1,
+                    coins: 1,
                     createdAt: 1,
                     updatedAt: 1,
                 },
@@ -327,41 +344,14 @@ const getUserProfilesFromDB = (user, query) => __awaiter(void 0, void 0, void 0,
     }
     const pipeline = [];
     // 1. Proximity Search & Sorting Logic
-    if (latitude && longitude) {
-        const userLat = parseFloat(latitude);
-        const userLng = parseFloat(longitude);
-        if (!isNaN(userLat) && !isNaN(userLng)) {
-            pipeline.push({
-                $geoNear: {
-                    near: { type: 'Point', coordinates: [userLng, userLat] },
-                    distanceField: 'distanceInKm',
-                    spherical: true,
-                    distanceMultiplier: 0.001, // Convert meters to km
-                    query: match,
-                },
-            });
-            // If NOT explicitly nearby-me, sort by createdAt but keep distanceInKm
-            if (filter !== 'nearby-me') {
-                pipeline.push({ $sort: { createdAt: -1 } });
-            }
-        }
-        else {
-            pipeline.push({ $match: match });
-            pipeline.push({ $sort: { _id: -1 } });
-        }
-    }
-    else {
-        pipeline.push({ $match: match });
-        pipeline.push({ $sort: { _id: -1 } });
-    }
+    pipeline.push({ $match: match });
+    pipeline.push({ $sort: { _id: -1 } });
     // 2. Projection & Derived Fields
     pipeline.push({
         $project: {
             _id: 1,
             name: 1,
             profileImage: 1,
-            revertDate: 1,
-            distanceInKm: 1,
             age: {
                 $dateDiff: {
                     startDate: '$dateOfBirth',
@@ -401,10 +391,6 @@ const getUserByIdFromDB = (id, requester) => __awaiter(void 0, void 0, void 0, f
     if (user.location) {
         user.country = user.location.country;
         user.city = user.location.city;
-        if (user.location.coordinates) {
-            user.latitude = user.location.coordinates[1];
-            user.longitude = user.location.coordinates[0];
-        }
         delete user.location;
     }
     return user;
@@ -419,7 +405,7 @@ const SESSION_INVALIDATING_STATUSES = [
     user_1.USER_STATUS.REJECTED,
     user_1.USER_STATUS.INACTIVE,
 ];
-const updateUserStatusInDB = (id, status, reason) => __awaiter(void 0, void 0, void 0, function* () {
+const updateUserStatusInDB = (id, status) => __awaiter(void 0, void 0, void 0, function* () {
     const user = yield user_model_1.User.findById(id).select('+authentication'); // Need authentication for isVerified check
     if (!user) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, "User doesn't exist!");
@@ -445,9 +431,6 @@ const updateUserStatusInDB = (id, status, reason) => __awaiter(void 0, void 0, v
     // a token in flight at the moment of the admin action is also dead.
     const flippingToLockout = SESSION_INVALIDATING_STATUSES.includes(status) && user.status !== status;
     const update = { status };
-    if (reason) {
-        update.rejectionReason = reason;
-    }
     let reverifyToken = null;
     if (flippingToRejected) {
         reverifyToken = (0, cryptoToken_1.default)();
@@ -467,7 +450,6 @@ const updateUserStatusInDB = (id, status, reason) => __awaiter(void 0, void 0, v
             name: updatedUser.name,
             reverifyToken,
             reverifyTtlHours: auth_constants_1.REVERIFY_TOKEN_TTL_HOURS,
-            rejectionReason: updatedUser.rejectionReason,
         }), { kind: 'account_rejected_reverify' });
     }
     return updatedUser;
@@ -507,36 +489,21 @@ const updateUserByAdminInDB = (id, payload) => __awaiter(void 0, void 0, void 0,
     // Whitelist fields admin can update (excluding password/auth info)
     if (payload.name !== undefined)
         user.name = payload.name;
-    if (payload.aboutMe !== undefined)
-        user.aboutMe = payload.aboutMe;
-    if (payload.revertStory !== undefined)
-        user.revertStory = payload.revertStory;
-    if (payload.interests !== undefined)
-        user.interests = payload.interests;
     if (payload.email !== undefined)
         user.email = payload.email;
     if (payload.dateOfBirth !== undefined)
         user.dateOfBirth = payload.dateOfBirth;
-    if (payload.revertDate !== undefined)
-        user.revertDate = payload.revertDate;
     if (payload.location !== undefined) {
-        const _b = payload.location, { latitude, longitude } = _b, remainingLocation = __rest(_b, ["latitude", "longitude"]);
-        if (latitude !== undefined && longitude !== undefined) {
-            user.location = Object.assign(Object.assign({}, remainingLocation), { type: 'Point', coordinates: [longitude, latitude] });
-        }
-        else {
-            user.location = payload.location;
-        }
+        user.location = payload.location;
     }
-    // if (payload.gender !== undefined) (user as any).gender = payload.gender;
+    if (payload.gender !== undefined)
+        user.gender = payload.gender;
     if (payload.profileImage !== undefined)
         user.profileImage = payload.profileImage;
     if (payload.status !== undefined)
         user.status = payload.status;
     if (payload.role !== undefined)
         user.role = payload.role;
-    if (payload.rejectionReason !== undefined)
-        user.rejectionReason = payload.rejectionReason;
     // Status-change side effects — must stay in sync with updateUserStatusInDB
     // because this endpoint is the "combined" admin update that can also flip
     // status. Without this hook, an admin who flips status via this route
@@ -563,7 +530,6 @@ const updateUserByAdminInDB = (id, payload) => __awaiter(void 0, void 0, void 0,
             name: user.name,
             reverifyToken,
             reverifyTtlHours: auth_constants_1.REVERIFY_TOKEN_TTL_HOURS,
-            rejectionReason: user.rejectionReason,
         }), { kind: 'account_rejected_reverify' });
     }
     const plain = user.toObject();
@@ -574,7 +540,7 @@ const updateUserByAdminInDB = (id, payload) => __awaiter(void 0, void 0, void 0,
     return plain;
 });
 const getUserDetailsByIdFromDB = (id, requester) => __awaiter(void 0, void 0, void 0, function* () {
-    const user = yield user_model_1.User.findById(id).select('_id name role profileImage location isVerified revertDate aboutMe revertStory interests createdAt status deletedAt');
+    const user = yield user_model_1.User.findById(id).select('_id name role profileImage location isVerified createdAt status deletedAt');
     // 1. Check existence and visibility
     if (!user || user.status !== user_1.USER_STATUS.ACTIVE || user.deletedAt) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
@@ -590,10 +556,6 @@ const getUserDetailsByIdFromDB = (id, requester) => __awaiter(void 0, void 0, vo
     if (result.location) {
         result.country = result.location.country;
         result.city = result.location.city;
-        if (result.location.coordinates) {
-            result.latitude = result.location.coordinates[1];
-            result.longitude = result.location.coordinates[0];
-        }
         delete result.location;
     }
     // Final cleanup of internal status/flags
@@ -783,7 +745,7 @@ const confirmEmailChangeFromDB = (user, otp) => __awaiter(void 0, void 0, void 0
 // admin approves them again.
 const reverifyAccountFromDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    const { token, verificationImage, verificationVideo, profileImage } = payload;
+    const { token, profileImage } = payload;
     const dbUser = yield user_model_1.User.findOne({
         'reverification.token': token,
         status: user_1.USER_STATUS.REJECTED,
@@ -805,18 +767,11 @@ const reverifyAccountFromDB = (payload) => __awaiter(void 0, void 0, void 0, fun
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid or expired re-verification token');
     }
     // Unlink the old verification files before overwriting. Best-effort —
-    // an unlink failure on a missing file shouldn't block re-verification.
-    if (dbUser.verificationImage)
-        (0, unlinkFile_1.default)(dbUser.verificationImage);
-    if (dbUser.verificationVideo)
-        (0, unlinkFile_1.default)(dbUser.verificationVideo);
     if (profileImage && dbUser.profileImage)
         (0, unlinkFile_1.default)(dbUser.profileImage);
     const update = {
         status: user_1.USER_STATUS.PENDING,
         isVerified: false,
-        verificationImage,
-        verificationVideo,
         reverification: { token: null, expireAt: null },
         rejectionReason: null,
     };

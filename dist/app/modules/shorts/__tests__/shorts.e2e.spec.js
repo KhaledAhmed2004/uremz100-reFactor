@@ -27,7 +27,7 @@ const testLogger_1 = require("../../../../helpers/__tests__/testLogger");
 const http_status_codes_1 = require("http-status-codes");
 let replSet;
 function createAuthUser() {
-    return __awaiter(this, arguments, void 0, function* (role = user_1.USER_ROLES.BROTHER) {
+    return __awaiter(this, arguments, void 0, function* (role = user_1.USER_ROLES.USER) {
         const user = yield user_model_1.User.create({
             name: `Test ${role}`,
             role,

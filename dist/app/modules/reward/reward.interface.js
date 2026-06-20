@@ -20,6 +20,7 @@ var TransactionSource;
     TransactionSource["PROFILE_COMPLETION"] = "profile_completion";
     TransactionSource["FOLLOW_FACEBOOK"] = "follow_facebook";
     TransactionSource["FOLLOW_INSTAGRAM"] = "follow_instagram";
+    TransactionSource["FOLLOW_YOUTUBE"] = "follow_youtube";
     TransactionSource["BIND_EMAIL"] = "bind_email";
     TransactionSource["FRESH_DRAMA"] = "fresh_drama";
     TransactionSource["LOGIN_REWARD"] = "login_reward";

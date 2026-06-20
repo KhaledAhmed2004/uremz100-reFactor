@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SubscriptionRoutes = void 0;
 const express_1 = __importDefault(require("express"));
 const auth_1 = __importDefault(require("../../middlewares/auth"));
+const guestOrAuth_1 = __importDefault(require("../../middlewares/guestOrAuth"));
 const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
 const user_1 = require("../../../enums/user");
 const subscription_controller_1 = __importDefault(require("./subscription.controller"));
@@ -14,11 +15,11 @@ const rateLimit_1 = require("../../middlewares/rateLimit");
 const router = express_1.default.Router();
 // GET /subscriptions/me
 // নিজের সাবস্ক্রিপশন স্ট্যাটাস/প্ল্যান দেখায়
-router.get('/me', (0, auth_1.default)(user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.getMySubscriptionController);
+router.get('/me', guestOrAuth_1.default, subscription_controller_1.default.getMySubscriptionController);
 // POST /subscriptions/apple/verify
 // iOS ক্লায়েন্ট StoreKit থেকে signedTransactionInfo পাঠায় — server verify করে
 // DB-তে সাবস্ক্রিপশন তৈরি/আপডেট করে।
-router.post('/apple/verify', (0, auth_1.default)(user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.SUPER_ADMIN), (0, rateLimit_1.rateLimitMiddleware)({
+router.post('/apple/verify', guestOrAuth_1.default, (0, rateLimit_1.rateLimitMiddleware)({
     windowMs: 60000,
     max: 30,
     routeName: 'subscription-apple-verify',
@@ -32,7 +33,7 @@ router.post('/apple/webhook', subscription_controller_1.default.appleWebhookCont
 // Android client passes the Google Play purchase token + productId from
 // the BillingClient — server verifies via Android Publisher API and
 // upserts the subscription record.
-router.post('/google/verify', (0, auth_1.default)(user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.SUPER_ADMIN), (0, rateLimit_1.rateLimitMiddleware)({
+router.post('/google/verify', guestOrAuth_1.default, (0, rateLimit_1.rateLimitMiddleware)({
     windowMs: 60000,
     max: 30,
     routeName: 'subscription-google-verify',
@@ -45,10 +46,10 @@ router.post('/google/verify', (0, auth_1.default)(user_1.USER_ROLES.BROTHER, use
 router.post('/google/webhook', subscription_controller_1.default.googleWebhookController);
 // POST /subscriptions/choose/free
 // লোকালি Free প্ল্যানে সুইচ করে
-router.post('/choose/free', (0, auth_1.default)(user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.chooseFreePlanController);
+router.post('/choose/free', guestOrAuth_1.default, subscription_controller_1.default.chooseFreePlanController);
 // --- Admin Routes ---
-router.get('/admin', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.getAllSubscriptionsController);
-router.get('/admin/analytics', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.getSubscriptionAnalyticsController);
+router.get('/', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.getAllSubscriptionsController);
+router.get('/stats', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.getSubscriptionAnalyticsController);
 router.get('/admin/pending-webhooks', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.getPendingWebhooksController);
 router.get('/admin/:subscriptionId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.getSubscriptionByIdController);
 router.get('/admin/events/:userId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), subscription_controller_1.default.getSubscriptionEventsController);

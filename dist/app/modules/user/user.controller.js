@@ -33,7 +33,14 @@ const user_1 = require("../../../enums/user");
 const jwtHelper_1 = require("../../../helpers/jwtHelper");
 const config_1 = __importDefault(require("../../../config"));
 const createUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const _a = req.body, { profileImage, verificationImage, verificationVideo } = _a, userData = __rest(_a, ["profileImage", "verificationImage", "verificationVideo"]);
+    const _a = req.body, { profileImage } = _a, userData = __rest(_a, ["profileImage"]);
+    // Handle files if uploaded
+    if (req.files) {
+        const files = req.files;
+        if (files['profileImage']) {
+            userData.profileImage = files['profileImage'][0].location || files['profileImage'][0].path;
+        }
+    }
     // Extract guestId from headers
     const guestId = req.headers['x-guest-id'];
     // Check if requester is an admin (optional auth for this specific endpoint)
@@ -52,9 +59,7 @@ const createUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, voi
             // Ignore token errors; fallback to public registration flow
         }
     }
-    const result = yield user_service_1.UserService.createUserToDB(Object.assign(Object.assign({}, userData), { profileImage,
-        verificationImage,
-        verificationVideo }), isAdmin, guestId);
+    const result = yield user_service_1.UserService.createUserToDB(Object.assign(Object.assign({}, userData), { profileImage: userData.profileImage || profileImage }), isAdmin, guestId);
     (0, sendResponse_1.default)(res, {
         success: true,
         statusCode: http_status_codes_1.StatusCodes.CREATED,
@@ -83,9 +88,24 @@ const getUserProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 }));
 const updateProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user;
-    // All files + text data are in req.body
-    const _a = req.body, { profileImage } = _a, rest = __rest(_a, ["profileImage"]);
-    const payload = Object.assign(Object.assign({}, rest), (profileImage ? { profileImage } : {}));
+    const payload = Object.assign({}, req.body);
+    // Handle file if uploaded
+    if (req.file) {
+        let filePath = req.file.location || req.file.path;
+        // If it's a local path, convert it to a relative URL for the frontend
+        if (!filePath.startsWith('http')) {
+            const normalizedPath = filePath.replace(/\\/g, '/');
+            const uploadIndex = normalizedPath.indexOf('/uploads/');
+            if (uploadIndex !== -1) {
+                filePath = normalizedPath.substring(uploadIndex);
+            }
+            else {
+                // Fallback if /uploads/ is not found
+                filePath = '/' + req.file.path.replace(/\\/g, '/');
+            }
+        }
+        payload.profileImage = filePath;
+    }
     const result = yield user_service_1.UserService.updateProfileToDB(user, payload);
     (0, sendResponse_1.default)(res, {
         success: true,
@@ -96,8 +116,8 @@ const updateProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
 }));
 const updateUserReview = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { userId } = req.params;
-    const { status, reason } = req.body;
-    const result = yield user_service_1.UserService.updateUserStatusInDB(userId, status, reason);
+    const { status } = req.body;
+    const result = yield user_service_1.UserService.updateUserStatusInDB(userId, status);
     (0, sendResponse_1.default)(res, {
         success: true,
         statusCode: http_status_codes_1.StatusCodes.OK,
@@ -222,13 +242,15 @@ const requestEmailChange = (0, catchAsync_1.default)((req, res) => __awaiter(voi
     });
 }));
 const reverifyAccount = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { token, verificationImage, verificationVideo, profileImage } = req.body;
-    const result = yield user_service_1.UserService.reverifyAccountFromDB({
-        token,
-        verificationImage,
-        verificationVideo,
-        profileImage,
-    });
+    const payload = Object.assign({}, req.body);
+    // Handle files if uploaded
+    if (req.files) {
+        const files = req.files;
+        if (files['profileImage']) {
+            payload.profileImage = files['profileImage'][0].location || files['profileImage'][0].path;
+        }
+    }
+    const result = yield user_service_1.UserService.reverifyAccountFromDB(payload);
     (0, sendResponse_1.default)(res, {
         success: true,
         statusCode: http_status_codes_1.StatusCodes.OK,

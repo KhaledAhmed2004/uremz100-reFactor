@@ -61,7 +61,7 @@ beforeEach(async () => {
 describe('My Collection E2E Tests', () => {
   describe('Add to Collection (POST /api/v1/my-collection)', () => {
     it('successfully adds a movie to user collection', async () => {
-      const { token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { token } = await createAuthUser(USER_ROLES.USER);
       const content = await Content.create({
         title: 'Collection Movie',
         description: 'desc',
@@ -91,7 +91,7 @@ describe('My Collection E2E Tests', () => {
 
   describe('Get My Collection (GET /api/v1/my-collection)', () => {
     it('successfully retrieves user collection with populated items', async () => {
-      const { user, token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { user, token } = await createAuthUser(USER_ROLES.USER);
       const content = await Content.create({
         title: 'Saved Movie',
         description: 'desc',
@@ -124,7 +124,7 @@ describe('My Collection E2E Tests', () => {
 
   describe('Remove from Collection (DELETE /api/v1/my-collection/:collectionId)', () => {
     it('successfully removes an item from collection', async () => {
-      const { user, token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { user, token } = await createAuthUser(USER_ROLES.USER);
       const collectionItem = await MyCollection.create({
         userId: user._id,
         itemType: 'MOVIE',

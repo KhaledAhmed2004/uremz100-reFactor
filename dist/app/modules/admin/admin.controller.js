@@ -18,6 +18,7 @@ const catchAsync_1 = __importDefault(require("../../../shared/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../../shared/sendResponse"));
 const ApiError_1 = __importDefault(require("../../../errors/ApiError"));
 const admin_service_1 = require("./admin.service");
+const content_model_1 = require("../content/content.model");
 const getDashboardStats = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { range, startDate, endDate } = req.query;
     const result = yield admin_service_1.AdminService.getAdminDashboardStats(range, startDate, endDate);
@@ -45,24 +46,6 @@ const getWatchlistStatus = (0, catchAsync_1.default)((req, res) => __awaiter(voi
         success: true,
         statusCode: http_status_codes_1.StatusCodes.OK,
         message: 'Watchlist status breakdown retrieved successfully',
-        data: result,
-    });
-}));
-const getMoviesStats = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield admin_service_1.AdminService.getMoviesStats();
-    (0, sendResponse_1.default)(res, {
-        success: true,
-        statusCode: http_status_codes_1.StatusCodes.OK,
-        message: 'Movies stats retrieved successfully',
-        data: result,
-    });
-}));
-const getSeriesStats = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const result = yield admin_service_1.AdminService.getSeriesStats();
-    (0, sendResponse_1.default)(res, {
-        success: true,
-        statusCode: http_status_codes_1.StatusCodes.OK,
-        message: 'Series stats retrieved successfully',
         data: result,
     });
 }));
@@ -118,71 +101,29 @@ const getMovieProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
         data: result,
     });
 }));
-const getMovieAnalyticsOverview = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { movieId } = req.params;
-    const result = yield admin_service_1.AdminService.getMovieAnalyticsOverviewData(movieId);
-    if (!result) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Movie analytics not found');
+// Methods moved to ContentController
+const patchContentBoost = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { isPopularSeries } = req.body;
+    const content = yield content_model_1.Content.findByIdAndUpdate(id, { isPopularSeries }, { new: true });
+    if (!content) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Content not found');
     }
     (0, sendResponse_1.default)(res, {
         success: true,
         statusCode: http_status_codes_1.StatusCodes.OK,
-        message: 'Movie analytics overview retrieved',
-        data: result,
-    });
-}));
-const getMovieAnalyticsEngagement = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { movieId } = req.params;
-    const result = yield admin_service_1.AdminService.getMovieAnalyticsEngagementData(movieId);
-    if (!result) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Movie analytics not found');
-    }
-    (0, sendResponse_1.default)(res, {
-        success: true,
-        statusCode: http_status_codes_1.StatusCodes.OK,
-        message: 'Movie analytics engagement retrieved',
-        data: result,
-    });
-}));
-const getMovieAnalyticsAudience = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { movieId } = req.params;
-    const result = yield admin_service_1.AdminService.getMovieAnalyticsAudienceData(movieId);
-    if (!result) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Movie analytics not found');
-    }
-    (0, sendResponse_1.default)(res, {
-        success: true,
-        statusCode: http_status_codes_1.StatusCodes.OK,
-        message: 'Movie analytics audience retrieved',
-        data: result,
-    });
-}));
-const getMovieAnalyticsRevenue = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { movieId } = req.params;
-    const result = yield admin_service_1.AdminService.getMovieAnalyticsRevenueData(movieId);
-    if (!result) {
-        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Movie analytics not found');
-    }
-    (0, sendResponse_1.default)(res, {
-        success: true,
-        statusCode: http_status_codes_1.StatusCodes.OK,
-        message: 'Movie analytics revenue retrieved',
-        data: result,
+        message: `Content ${isPopularSeries ? 'boosted' : 'unboosted'} successfully`,
+        data: content,
     });
 }));
 exports.AdminController = {
     getDashboardStats,
     getVisitorAnalytics,
     getWatchlistStatus,
-    getMoviesStats,
-    getSeriesStats,
     getSubscriptionsStats,
     getAdminSubscriptions,
     getRevenueStats,
     getTransactions,
     getMovieProfile,
-    getMovieAnalyticsOverview,
-    getMovieAnalyticsEngagement,
-    getMovieAnalyticsAudience,
-    getMovieAnalyticsRevenue,
+    patchContentBoost,
 };

@@ -64,7 +64,7 @@ function createAuthUser() {
 (0, vitest_1.describe)('My Collection E2E Tests', () => {
     (0, vitest_1.describe)('Add to Collection (POST /api/v1/my-collection)', () => {
         (0, vitest_1.it)('successfully adds a movie to user collection', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { token } = yield createAuthUser(user_1.USER_ROLES.USER);
             const content = yield content_model_1.Content.create({
                 title: 'Collection Movie',
                 description: 'desc',
@@ -89,7 +89,7 @@ function createAuthUser() {
     });
     (0, vitest_1.describe)('Get My Collection (GET /api/v1/my-collection)', () => {
         (0, vitest_1.it)('successfully retrieves user collection with populated items', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { user, token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { user, token } = yield createAuthUser(user_1.USER_ROLES.USER);
             const content = yield content_model_1.Content.create({
                 title: 'Saved Movie',
                 description: 'desc',
@@ -117,7 +117,7 @@ function createAuthUser() {
     });
     (0, vitest_1.describe)('Remove from Collection (DELETE /api/v1/my-collection/:collectionId)', () => {
         (0, vitest_1.it)('successfully removes an item from collection', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { user, token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { user, token } = yield createAuthUser(user_1.USER_ROLES.USER);
             const collectionItem = yield my_collection_model_1.MyCollection.create({
                 userId: user._id,
                 itemType: 'MOVIE',

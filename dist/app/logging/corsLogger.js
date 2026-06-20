@@ -11,6 +11,7 @@ exports.allowedOrigins = [
     'http://localhost:5174',
     'https://task-titans-admin-orcin.vercel.app',
     'http://localhost:5173',
+    'https://adnan5001.binarybards.online',
     'http://localhost:5175',
     'https://task-titans-six.vercel.app',
     'https://task-titans-admin.vercel.app',

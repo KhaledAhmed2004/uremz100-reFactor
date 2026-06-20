@@ -26,11 +26,14 @@ const fileUploadHandler = () => {
             let uploadDir;
             switch (file.fieldname) {
                 case 'image':
+                case 'profileImage':
+                case 'verificationImage':
                 case 'posterFile':
                 case 'thumbnailFile':
                     uploadDir = path_1.default.join(baseUploadDir, 'image');
                     break;
                 case 'media':
+                case 'verificationVideo':
                 case 'videoFile':
                 case 'trailerFile':
                     uploadDir = path_1.default.join(baseUploadDir, 'media');
@@ -58,7 +61,7 @@ const fileUploadHandler = () => {
     });
     //file filter
     const filterFilter = (req, file, cb) => {
-        if (file.fieldname === 'image' || file.fieldname === 'posterFile' || file.fieldname === 'thumbnailFile') {
+        if (file.fieldname === 'image' || file.fieldname === 'profileImage' || file.fieldname === 'verificationImage' || file.fieldname === 'posterFile' || file.fieldname === 'thumbnailFile') {
             if (file.mimetype === 'image/jpeg' ||
                 file.mimetype === 'image/png' ||
                 file.mimetype === 'image/jpg') {
@@ -68,7 +71,7 @@ const fileUploadHandler = () => {
                 cb(new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Only .jpeg, .png, .jpg file supported'));
             }
         }
-        else if (file.fieldname === 'media' || file.fieldname === 'videoFile' || file.fieldname === 'trailerFile') {
+        else if (file.fieldname === 'media' || file.fieldname === 'verificationVideo' || file.fieldname === 'videoFile' || file.fieldname === 'trailerFile') {
             const allowed = [
                 'video/mp4',
                 'video/webm',

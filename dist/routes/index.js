@@ -19,6 +19,7 @@ const home_route_1 = require("../app/modules/home/home.route");
 const my_collection_route_1 = require("../app/modules/my-collection/my-collection.route");
 const shorts_route_1 = require("../app/modules/shorts/shorts.route");
 const reward_route_1 = require("../app/modules/reward/reward.route");
+const revenue_route_1 = require("../app/modules/revenue/revenue.route");
 const router = express_1.default.Router();
 const apiRoutes = [
     {
@@ -42,12 +43,16 @@ const apiRoutes = [
         route: admin_route_1.AdminRoutes,
     },
     {
-        path: '/legal',
+        path: '/legals',
         route: legal_route_1.LegalRoutes,
     },
     {
         path: '/admin/pending-emails',
         route: pending_email_route_1.PendingEmailRoutes,
+    },
+    {
+        path: '/admin/revenues',
+        route: revenue_route_1.RevenueRoutes,
     },
     {
         path: '/support-tickets',

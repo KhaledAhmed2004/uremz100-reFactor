@@ -81,11 +81,28 @@ const removeFromCollectionFromDB = (payload) => __awaiter(void 0, void 0, void 0
     }
     return result;
 });
+const removeFromCollectionBulkFromDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
+    const { userId, guestId, itemIds } = payload;
+    if (!userId && !guestId) {
+        throw new ApiError_1.default(http_status_1.default.BAD_REQUEST, 'User ID or Guest ID is required');
+    }
+    const query = userId
+        ? {
+            userId: new mongoose_1.Types.ObjectId(userId),
+            $or: [{ _id: { $in: itemIds } }, { itemId: { $in: itemIds } }]
+        }
+        : {
+            guestId,
+            $or: [{ _id: { $in: itemIds } }, { itemId: { $in: itemIds } }]
+        };
+    const result = yield my_collection_model_1.MyCollection.deleteMany(query);
+    return result.deletedCount;
+});
 const getMyCollectionFromDB = (userId, guestId, query) => __awaiter(void 0, void 0, void 0, function* () {
     if (!userId && !guestId)
         return { pagination: null, data: [] };
     const dbQuery = userId ? { userId: new mongoose_1.Types.ObjectId(userId) } : { guestId };
-    const cardFields = 'title poster thumbnail type isPremium isRecent rating seasonNumber episodeNumber';
+    const cardFields = 'title posterUrl thumbnailUrl type isPremium releaseDate rating seasonNumber episodeNumber publishedAt createdAt';
     const myCollectionQuery = my_collection_model_1.MyCollection.find(dbQuery)
         .populate('itemId', cardFields);
     const collectionQuery = new QueryBuilder_1.default(myCollectionQuery, query)
@@ -103,5 +120,6 @@ const getMyCollectionFromDB = (userId, guestId, query) => __awaiter(void 0, void
 exports.MyCollectionService = {
     addToCollectionInDB,
     removeFromCollectionFromDB,
+    removeFromCollectionBulkFromDB,
     getMyCollectionFromDB,
 };

@@ -269,7 +269,7 @@ const processValidatedGoogleNotification = (existing, decoded, notificationTypeC
     }
     const updates = buildUpdatesForGoogleNotification(notificationTypeCode, decoded.productId, decoded.expiryTime, decoded.autoRenewing);
     const newMetadata = Object.assign(Object.assign({}, (existing.metadata || {})), { lastGoogleMessageId: messageId || undefined, lastGoogleNotificationType: notificationType, lastGoogleNotificationCode: notificationTypeCode, lastGoogleNotificationAt: new Date().toISOString() });
-    yield subscription_model_1.Subscription.upsertForUser(existing.userId, Object.assign(Object.assign({}, updates), { googlePurchaseToken: decoded.purchaseToken, googleOrderId: decoded.orderId || existing.googleOrderId, metadata: newMetadata }));
+    yield subscription_model_1.Subscription.upsertForUserOrGuest(existing.userId, existing.guestId, Object.assign(Object.assign({}, updates), { googlePurchaseToken: decoded.purchaseToken, googleOrderId: decoded.orderId || existing.googleOrderId, metadata: newMetadata }));
     logger_1.logger.info(`Google RTDN ${notificationType} applied to subscription ${existing._id}`);
     return {
         processed: true,

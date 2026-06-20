@@ -108,7 +108,7 @@ const userSchema = new mongoose_1.Schema({
     role: {
         type: String,
         enum: Object.values(user_1.USER_ROLES),
-        required: true,
+        default: user_1.USER_ROLES.USER,
     },
     email: {
         type: String,
@@ -140,59 +140,31 @@ const userSchema = new mongoose_1.Schema({
         default: [],
         select: false,
     },
-    revertDate: {
-        type: Date,
-        required: function () {
-            return this.role === user_1.USER_ROLES.BROTHER || this.role === user_1.USER_ROLES.SISTER;
-        },
+    gender: {
+        type: String,
+        enum: ['MALE', 'FEMALE', 'OTHER'],
+        required: false,
     },
     dateOfBirth: {
         type: Date,
-        required: true,
+        required: false,
     },
     profileImage: {
         type: String,
-        required: true,
+        required: false,
         // Self-hosted SVG — served by `app.use(express.static('public'))`
         // in src/app.ts. Relative path; clients resolve against {{baseUrl}}.
         // Replaces the previous external CDN dependency on i.ibb.co (SPOF).
         default: '/default-avatar.svg',
     },
-    verificationImage: {
-        type: String,
-        required: function () {
-            return this.role === user_1.USER_ROLES.BROTHER || this.role === user_1.USER_ROLES.SISTER;
-        },
-    },
-    verificationVideo: {
-        type: String,
-        required: function () {
-            return this.role === user_1.USER_ROLES.BROTHER || this.role === user_1.USER_ROLES.SISTER;
-        },
-    },
-    aboutMe: {
-        type: String,
-    },
-    revertStory: {
-        type: String,
-    },
-    interests: {
-        type: [String],
-        default: [],
-    },
     location: {
         country: { type: String },
         city: { type: String },
-        type: { type: String, enum: ['Point'], default: 'Point' },
-        coordinates: { type: [Number] }, // [longitude, latitude]
     },
     status: {
         type: String,
         enum: Object.values(user_1.USER_STATUS),
-        default: user_1.USER_STATUS.PENDING,
-    },
-    rejectionReason: {
-        type: String,
+        default: user_1.USER_STATUS.ACTIVE,
     },
     isVerified: {
         type: Boolean,
@@ -216,19 +188,6 @@ const userSchema = new mongoose_1.Schema({
         type: String,
         sparse: true,
         unique: true,
-    },
-    subscriptionTier: {
-        type: String,
-        enum: Object.values(user_1.SUBSCRIPTION_TIER),
-        default: user_1.SUBSCRIPTION_TIER.FREE,
-    },
-    subscriptionStatus: {
-        type: String,
-        enum: Object.values(user_1.SUBSCRIPTION_STATUS),
-        default: user_1.SUBSCRIPTION_STATUS.NONE,
-    },
-    subscriptionExpiryDate: {
-        type: Date,
     },
     appleOriginalTransactionId: {
         type: String,
@@ -309,8 +268,6 @@ userSchema.index({ 'deviceTokens.token': 1 });
 // Cron purge query: find users whose recovery window has expired.
 // Compound index speeds up `find({ status: DELETED, recoveryDeadline: { $lt: now } })`.
 userSchema.index({ status: 1, recoveryDeadline: 1 });
-// Geospatial index for nearby users
-userSchema.index({ 'location.coordinates': '2dsphere' });
 userSchema.statics.isExistUserById = (id) => __awaiter(void 0, void 0, void 0, function* () {
     return yield exports.User.findById(id);
 });

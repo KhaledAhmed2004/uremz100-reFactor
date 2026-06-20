@@ -12,21 +12,21 @@ const router = express.Router();
 // Fetch notifications + unread count
 router.get(
   '/me',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   NotificationController.getNotificationFromDB
 );
 
 // Mark all notifications as read (fixed path BEFORE param path)
 router.patch(
   '/read-all',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   NotificationController.readAllNotifications
 );
 
 // Mark a notification as read
 router.patch(
   '/:notificationId/read',
-  auth(USER_ROLES.BROTHER, USER_ROLES.SISTER, USER_ROLES.SUPER_ADMIN),
+  auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
   NotificationController.readNotification
 );
 

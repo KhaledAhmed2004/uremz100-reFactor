@@ -43,7 +43,6 @@ vitest_1.vi.mock('../../recently-watched/recently-watched.model', () => ({
     (0, vitest_1.it)('should fetch from database and cache when redis returns null', () => __awaiter(void 0, void 0, void 0, function* () {
         // Simulate Redis cache miss
         redisClient_1.redisClient.get.mockResolvedValue(null);
-        // Simulate DB returning data
         const mockData = [{ _id: '1', title: 'Test Movie', type: 'MOVIE' }];
         content_model_1.Content.limit.mockResolvedValue(mockData);
         const result = yield home_service_1.HomeService.getHomeContentFromDB();

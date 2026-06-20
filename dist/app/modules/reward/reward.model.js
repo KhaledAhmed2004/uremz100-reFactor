@@ -9,7 +9,8 @@ const bonusLedgerSchema = new mongoose_1.Schema({
     source: { type: String, required: true },
 }, { _id: false });
 const walletSchema = new mongoose_1.Schema({
-    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
+    guestId: { type: String, unique: true, sparse: true },
     goldBalance: { type: Number, required: true, default: 0 },
     bonusLedger: { type: [bonusLedgerSchema], default: [] },
 }, {
@@ -28,16 +29,33 @@ const transactionSchema = new mongoose_1.Schema({
 });
 exports.Transaction = (0, mongoose_1.model)('Transaction', transactionSchema);
 const userRewardProgressSchema = new mongoose_1.Schema({
-    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
-    dailyStreak: { type: Number, default: 0 },
-    lastCheckInDate: { type: Date },
+    user: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
+    guestId: { type: String, unique: true, sparse: true },
+    checkInStreak: {
+        currentDay: { type: Number, default: 1 },
+        lastClaimDate: { type: Date },
+        totalStreaksCompleted: { type: Number, default: 0 },
+        isStreakActive: { type: Boolean, default: true },
+    },
+    checkInRewards: {
+        type: Map,
+        of: new mongoose_1.Schema({
+            claimed: { type: Boolean, default: false },
+            claimedAt: { type: Date },
+        }, { _id: false }),
+        default: {},
+    },
     adsWatchedToday: { type: Number, default: 0 },
     lastAdWatchDate: { type: Date },
-    watchTimeMilestonesClaimed: { type: [Number], default: [] },
+    dailyWatchReward: {
+        lastClaimDate: { type: Date },
+        claimedDuration: { type: Number },
+    },
     hasClaimedNotificationReward: { type: Boolean, default: false },
     hasClaimedProfileReward: { type: Boolean, default: false },
     hasClaimedFacebookReward: { type: Boolean, default: false },
     hasClaimedInstagramReward: { type: Boolean, default: false },
+    hasClaimedYoutubeReward: { type: Boolean, default: false },
     hasClaimedBindEmailReward: { type: Boolean, default: false },
     hasClaimedLoginReward: { type: Boolean, default: false },
     freshDramaWatchTimeClaimed: { type: [Number], default: [] },

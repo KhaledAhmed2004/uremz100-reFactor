@@ -10,23 +10,32 @@ const user_1 = require("../../../enums/user");
 const rateLimit_1 = require("../../middlewares/rateLimit");
 const content_controller_1 = require("./content.controller");
 const fileUploadHandler_1 = __importDefault(require("../../middlewares/fileUploadHandler"));
+const guestOrAuth_1 = __importDefault(require("../../middlewares/guestOrAuth"));
 const router = express_1.default.Router();
 const upload = (0, fileUploadHandler_1.default)();
 // Search and Common
-router.get('/search', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.JUMMAH), (0, rateLimit_1.rateLimitMiddleware)({
+router.get('/search', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), (0, rateLimit_1.rateLimitMiddleware)({
     windowMs: 60000,
     max: 60,
     routeName: 'content-search',
 }), content_controller_1.ContentController.searchContent);
-router.get('/best-movies', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.JUMMAH), content_controller_1.ContentController.getBestMovies);
-router.get('/coming-soon', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.JUMMAH), content_controller_1.ContentController.getComingSoonContent);
+router.get('/best-movies', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), content_controller_1.ContentController.getBestMovies);
+router.get('/coming-soon', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), content_controller_1.ContentController.getComingSoonContent);
+router.get('/:contentId/details', guestOrAuth_1.default, content_controller_1.ContentController.getContentDetailsPublic);
+router.get('/:contentId/playback-url', guestOrAuth_1.default, content_controller_1.ContentController.getPlaybackUrl);
+router.get('/episodes/:episodeId/playback-url', guestOrAuth_1.default, content_controller_1.ContentController.getEpisodePlaybackUrl);
 // Movies Management
+router.get('/movies/stats', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getMoviesStats);
 router.post('/movies', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), upload.fields([
     { name: 'videoFile', maxCount: 1 },
     { name: 'trailerFile', maxCount: 1 },
     { name: 'posterFile', maxCount: 1 },
 ]), content_controller_1.ContentController.createMovie);
-router.get('/movies', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.JUMMAH), content_controller_1.ContentController.getAdminMovies);
+router.get('/movies', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN), content_controller_1.ContentController.getAdminMovies);
+router.get('/movies/:movieId', guestOrAuth_1.default, content_controller_1.ContentController.getMovieDetails);
+router.get('/movies/:movieId/analytics/overview', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getMovieAnalyticsOverview);
+router.get('/movies/:movieId/analytics/audience', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getMovieAnalyticsAudience);
+router.get('/movies/:movieId/analytics/engagement', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getMovieAnalyticsEngagement);
 router.patch('/movies/:movieId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), upload.fields([
     { name: 'videoFile', maxCount: 1 },
     { name: 'trailerFile', maxCount: 1 },
@@ -35,6 +44,7 @@ router.patch('/movies/:movieId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADM
 router.delete('/movies/:movieId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.deleteMovie);
 router.patch('/movies/:movieId/status', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.updateMovieStatus);
 // Series Management
+router.get('/series/stats', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getSeriesStats);
 router.get('/series', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getAdminSeries);
 router.post('/series', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), upload.fields([
     { name: 'trailerFile', maxCount: 1 },

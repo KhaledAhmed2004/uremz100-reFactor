@@ -15,7 +15,7 @@ import { StatusCodes } from 'http-status-codes';
 
 let replSet: MongoMemoryReplSet;
 
-async function createAuthUser(role: string = USER_ROLES.BROTHER) {
+async function createAuthUser(role: string = USER_ROLES.USER) {
   const user = await User.create({
     name: `Test ${role}`,
     role,

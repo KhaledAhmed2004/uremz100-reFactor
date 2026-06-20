@@ -8,6 +8,7 @@ exports.toJSONPlugin = void 0;
  */
 const toJSONPlugin = (schema) => {
     schema.set('toJSON', {
+        virtuals: true,
         transform: (doc, ret) => {
             // 1. Convert _id to id safely
             if (ret._id) {

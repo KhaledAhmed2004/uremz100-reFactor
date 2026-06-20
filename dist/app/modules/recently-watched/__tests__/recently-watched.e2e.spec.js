@@ -64,7 +64,7 @@ function createAuthUser() {
 (0, vitest_1.describe)('Recently Watched E2E Tests', () => {
     (0, vitest_1.describe)('Track Progress (POST /api/v1/recently-watched/track-progress)', () => {
         (0, vitest_1.it)('successfully tracks content progress for a user', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { user, token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { user, token } = yield createAuthUser(user_1.USER_ROLES.USER);
             const content = yield content_model_1.Content.create({
                 title: 'Test Movie',
                 description: 'desc',
@@ -99,7 +99,7 @@ function createAuthUser() {
     });
     (0, vitest_1.describe)('Get Recently Watched (GET /api/v1/recently-watched)', () => {
         (0, vitest_1.it)('successfully retrieves user watch history', () => __awaiter(void 0, void 0, void 0, function* () {
-            const { user, token } = yield createAuthUser(user_1.USER_ROLES.BROTHER);
+            const { user, token } = yield createAuthUser(user_1.USER_ROLES.USER);
             const content = yield content_model_1.Content.create({
                 title: 'Test Movie',
                 description: 'desc',

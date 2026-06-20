@@ -4,15 +4,15 @@ exports.RewardValidation = void 0;
 const zod_1 = require("zod");
 const claimWatchTimeRewardZodSchema = zod_1.z.object({
     body: zod_1.z.object({
-        minutes: zod_1.z.number({ required_error: 'Minutes is required' }).min(1, 'Minimum 1 minute required'),
+        videoDuration: zod_1.z.number({ required_error: 'videoDuration is required' }).min(0, 'ভিডিও ডুরেশন ধনাত্মক হতে হবে।'),
     }),
 });
-const claimSocialRewardZodSchema = zod_1.z.object({
+const claimTaskZodSchema = zod_1.z.object({
     body: zod_1.z.object({
-        platform: zod_1.z.enum(['facebook', 'instagram'], { required_error: 'Platform must be facebook or instagram' }),
+        taskType: zod_1.z.enum(['LOGIN', 'NOTIFICATION', 'FACEBOOK', 'INSTAGRAM', 'YOUTUBE', 'BIND_EMAIL', 'PROFILE_COMPLETION', 'WATCH_AD'], { required_error: 'taskType is required and must be a valid task type' }),
     }),
 });
 exports.RewardValidation = {
     claimWatchTimeRewardZodSchema,
-    claimSocialRewardZodSchema,
+    claimTaskZodSchema,
 };

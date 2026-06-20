@@ -4,7 +4,8 @@ exports.SubscriptionEvent = void 0;
 const mongoose_1 = require("mongoose");
 const subscription_event_interface_1 = require("./subscription-event.interface");
 const subscriptionEventSchema = new mongoose_1.Schema({
-    userId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    userId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'User', required: false, index: true },
+    guestId: { type: String, required: false, index: true },
     subscriptionId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: 'Subscription',

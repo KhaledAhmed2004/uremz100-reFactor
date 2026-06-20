@@ -111,6 +111,7 @@ const getAdminMoviesList = async (query: Record<string, unknown>) => {
     _id: item._id,
     title: item.title,
     posterUrl: item.posterUrl,
+    poster: item.posterUrl,
     duration: `${Math.floor(item.duration / 60)}h ${item.duration % 60}m`,
     status: item.status,
     planStatus: item.planStatus,
@@ -132,20 +133,39 @@ const getAdminSeriesList = async (query: Record<string, unknown>) => {
   const series = await seriesQuery.modelQuery;
   const paginationInfo = await seriesQuery.getPaginationInfo();
 
-  const data = series.map((item: any) => ({
-    _id: item._id,
-    title: item.title,
-    posterUrl: item.posterUrl,
-    seasonsCount: item.seasonsCount || 0,
-    status: item.status,
-    subscriptionType: item.planStatus,
-  }));
+  const data = await Promise.all(
+    series.map(async (item: any) => {
+      let posterUrl = null;
+      const latestSeason = await Season.findOne({ seriesId: item._id }).sort('-seasonNumber').lean();
+      if (latestSeason) {
+        posterUrl = latestSeason.posterUrl;
+      }
+
+      return {
+        _id: item._id,
+        title: item.title,
+        posterUrl,
+        poster: posterUrl,
+        seasonsCount: item.seasonsCount || 0,
+        status: item.status,
+        planStatus: item.planStatus,
+      };
+    })
+  );
 
   return {
     pagination: paginationInfo,
     data,
   };
 };
+const getMovieDetailsFromDB = async (id: string) => {
+  const movie = await Content.findById(id);
+  if (!movie) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Movie not found');
+  }
+  return movie.toObject();
+};
+
 const getSeriesDetailsFromDB = async (id: string) => {
   const series = await Content.findById(id);
   if (!series) {
@@ -176,12 +196,18 @@ const getSeriesDetailsFromDB = async (id: string) => {
 };
 
 const getContentDetailsPublicFromDB = async (id: string) => {
-  const content = await Content.findById(id).select('-videoUrl -dailyViews -weeklyViews -totalWatchTime -engagementScore -trendingScore');
+  const content = await Content.findById(id)
+    .populate('genres', 'name')
+    .select('-dailyViews -weeklyViews -totalWatchTime -engagementScore -trendingScore -__v -cast');
   if (!content || content.status !== 'PUBLISHED') {
     throw new ApiError(httpStatus.NOT_FOUND, 'Content not found');
   }
 
   let result = content.toObject();
+  
+  if (result.genres && Array.isArray(result.genres)) {
+    result.genres = result.genres.map((g: any) => g.name || g);
+  }
 
   if (content.type === 'SERIES') {
     const totalEpisodes = await Episode.countDocuments({ seriesId: id, status: 'PUBLISHED' });
@@ -190,12 +216,17 @@ const getContentDetailsPublicFromDB = async (id: string) => {
     const seasons = await Promise.all(
       seasonsRaw.map(async (season) => {
         const episodes = await Episode.find({ seasonId: season._id, status: 'PUBLISHED' })
-          .select('-videoUrl')
+          .select('-videoUrl -createdAt -updatedAt -__v')
           .sort('episodeNumber');
+          
+        const seasonObj = season.toObject();
+        delete seasonObj.createdAt;
+        delete seasonObj.updatedAt;
+        delete seasonObj.__v;
+
         return {
-          ...season.toObject(),
-          episodeCount: episodes.length,
-          episodes: episodes
+          ...seasonObj,
+          episodeCount: episodes.length
         };
       })
     );
@@ -203,8 +234,12 @@ const getContentDetailsPublicFromDB = async (id: string) => {
     result = {
       ...result,
       totalEpisodes,
+      seasonsCount: seasons.length,
       seasons
     };
+  } else if (content.type === 'MOVIE') {
+    delete result.totalEpisodes;
+    delete result.seasonsCount;
   }
 
   return result;
@@ -275,6 +310,31 @@ const _checkSubscription = async (userId: string | undefined, planStatus: string
   }
 };
 
+const getEpisodesBySeasonPublicFromDB = async (seasonId: string) => {
+  const episodes = await Episode.find({ seasonId, status: 'PUBLISHED' })
+    .select('-createdAt -updatedAt -__v')
+    .sort('episodeNumber');
+  return episodes;
+};
+
+const getSimilarContentFromDB = async (contentId: string) => {
+  const content = await Content.findById(contentId).select('genres');
+  if (!content) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Content not found');
+  }
+
+  const similarContents = await Content.find({
+    _id: { $ne: content._id },
+    status: 'PUBLISHED',
+    genres: { $in: content.genres }
+  })
+    .select('-videoUrl -dailyViews -weeklyViews -totalWatchTime -engagementScore -trendingScore -__v -cast')
+    .sort({ engagementScore: -1, views: -1 })
+    .limit(10);
+
+  return similarContents;
+};
+
 const generatePlaybackUrl = async (contentId: string, userId?: string, guestId?: string) => {
   const content = await Content.findById(contentId);
   if (!content || content.status !== 'PUBLISHED') {
@@ -338,6 +398,8 @@ const getEpisodesFromDB = async (seriesId: string, query: Record<string, unknown
     data: episodes.map((ep: any) => ({
       _id: ep._id,
       title: ep.title,
+      description: ep.description,
+      thumbnailUrl: ep.thumbnailUrl,
       duration: `${ep.duration} min`,
       releaseDate: ep.releaseDate,
       status: ep.status,
@@ -915,6 +977,7 @@ export const ContentService = {
   getSeriesStats,
   getAdminMoviesList: getAdminMoviesList,
   getAdminSeriesList: getAdminSeriesList,
+  getMovieDetailsFromDB: getMovieDetailsFromDB,
   getSeriesDetailsFromDB: getSeriesDetailsFromDB,
   getEpisodesFromDB: getEpisodesFromDB,
   createEpisodeToDB: createEpisodeToDB,
@@ -936,6 +999,8 @@ export const ContentService = {
   updateSeasonInDB: updateSeasonInDB,
   deleteSeasonFromDB: deleteSeasonFromDB,
   getContentDetailsPublicFromDB: getContentDetailsPublicFromDB,
+  getSimilarContentFromDB: getSimilarContentFromDB,
+  getEpisodesBySeasonPublicFromDB: getEpisodesBySeasonPublicFromDB,
   generatePlaybackUrl: generatePlaybackUrl,
   generateEpisodePlaybackUrl: generateEpisodePlaybackUrl
 };

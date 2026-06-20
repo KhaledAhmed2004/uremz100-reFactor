@@ -4,7 +4,7 @@ exports.Season = void 0;
 const mongoose_1 = require("mongoose");
 const seasonSchema = new mongoose_1.Schema({
     title: { type: String, required: true, trim: true },
-    poster: { type: String, required: true },
+    posterUrl: { type: String, required: true },
     seriesId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Content', required: true },
     seasonNumber: { type: Number, required: true },
 }, {

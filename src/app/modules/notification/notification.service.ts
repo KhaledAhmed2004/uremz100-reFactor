@@ -146,10 +146,10 @@ const sendAdminNotification = async (
   if (audience === 'ALL') {
     // Target all common user roles
     const users = await User.find({
-      role: { $in: [USER_ROLES.BROTHER, USER_ROLES.SISTER] },
+      role: { $in: [USER_ROLES.USER, USER_ROLES.USER] },
     }).select('_id');
     builder.toMany(users.map(u => u._id));
-  } else if ([USER_ROLES.BROTHER, USER_ROLES.SISTER].includes(audience as USER_ROLES)) {
+  } else if ([USER_ROLES.USER, USER_ROLES.USER].includes(audience as USER_ROLES)) {
     // Dynamic role targeting (restricted to BROTHER and SISTER)
     builder.toRole(audience);
   } else {

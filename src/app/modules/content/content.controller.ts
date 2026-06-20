@@ -4,7 +4,9 @@ import { JwtPayload } from 'jsonwebtoken';
 import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import { ContentService } from './content.service';
-import { StatusCodes } from "http-status-codes";
+import { StatusCodes } from 'http-status-codes';
+import { AdminService } from '../admin/admin.service';
+import ApiError from '../../../errors/ApiError';
 
 const searchContent = catchAsync(async (req: Request, res: Response) => {
   const result = await ContentService.searchContentFromDB(req.query);
@@ -107,6 +109,75 @@ const getAdminSeries = catchAsync(async (req: Request, res: Response) => {
     data: result.data,
   });
 });
+const getMovieDetails = catchAsync(async (req: Request, res: Response) => {
+  const result = await ContentService.getMovieDetailsFromDB(req.params.movieId);
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Movie details retrieved successfully',
+    data: result,
+  });
+});
+
+const getMovieAnalyticsEngagement = catchAsync(async (req: Request, res: Response) => {
+  const { movieId } = req.params;
+
+  const [engagement] = await Promise.all([
+    AdminService.getMovieAnalyticsEngagementData(movieId),
+    // AdminService.getMovieAnalyticsAudienceData(movieId),
+    // AdminService.getMovieAnalyticsRevenueData(movieId),
+  ]);
+
+  if (!engagement) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Movie analytics not found');
+  }
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Movie analytics engagement retrieved successfully',
+    data: {
+      engagement,
+      // audience,
+      // revenue,
+    },
+  });
+});
+
+const getMovieAnalyticsAudience = catchAsync(async (req: Request, res: Response) => {
+  const { movieId } = req.params;
+
+  const result = await AdminService.getMovieAnalyticsAudienceData(movieId);
+
+  if (!result) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Movie analytics not found');
+  }
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Movie analytics audience retrieved successfully',
+    data: result,
+  });
+});
+
+const getMovieAnalyticsOverview = catchAsync(async (req: Request, res: Response) => {
+  const { movieId } = req.params;
+
+  const result = await AdminService.getMovieAnalyticsOverviewData(movieId);
+
+  if (!result) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Movie analytics not found');
+  }
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Movie analytics overview retrieved successfully',
+    data: result,
+  });
+});
+
 const getSeriesDetails = catchAsync(async (req: Request, res: Response) => {
   const result = await ContentService.getSeriesDetailsFromDB(req.params.seriesId);
   sendResponse(res, {
@@ -159,6 +230,9 @@ const createSeason = catchAsync(async (req: Request, res: Response) => {
     const files = req.files as { [fieldname: string]: Express.Multer.File[] };
     if (files['posterFile']) {
       payload.posterUrl = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
+    }
+    if (files['trailerFile']) {
+      payload.trailerUrl = (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
     }
   }
 
@@ -304,21 +378,6 @@ const createMovie = catchAsync(async (req: Request, res: Response) => {
 const createSeries = catchAsync(async (req: Request, res: Response) => {
   const payload = { ...req.body };
 
-  // Handle files from fileUploadHandler
-  if (req.files) {
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    if (files['trailerFile'])
-      payload.trailerUrl =
-        (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
-    if (files['posterFile'])
-      payload.posterUrl =
-        (files['posterFile'][0] as any).location || files['posterFile'][0].path;
-    if (files['thumbnailFile'])
-      payload.thumbnailUrl =
-        (files['thumbnailFile'][0] as any).location ||
-        files['thumbnailFile'][0].path;
-  }
-
   const result = await ContentService.createSeriesToDB(payload);
   sendResponse(res, {
     success: true,
@@ -329,21 +388,6 @@ const createSeries = catchAsync(async (req: Request, res: Response) => {
 });
 const updateSeries = catchAsync(async (req: Request, res: Response) => {
   const payload = { ...req.body };
-
-  // Handle files from fileUploadHandler
-  if (req.files) {
-    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
-    if (files['trailerFile'])
-      payload.trailerUrl =
-        (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
-    if (files['posterFile'])
-      payload.posterUrl =
-        (files['posterFile'][0] as any).location || files['posterFile'][0].path;
-    if (files['thumbnailFile'])
-      payload.thumbnailUrl =
-        (files['thumbnailFile'][0] as any).location ||
-        files['thumbnailFile'][0].path;
-  }
 
   const result = await ContentService.updateSeriesInDB(
     req.params.seriesId,
@@ -450,6 +494,28 @@ const completeUpload = catchAsync(async (req: Request, res: Response) => {
 });
 
 
+const getEpisodesBySeasonPublic = catchAsync(async (req, res) => {
+  const result = await ContentService.getEpisodesBySeasonPublicFromDB(req.params.seasonId);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: 'Season episodes retrieved successfully',
+    data: result,
+  });
+});
+
+const getSimilarContentPublic = catchAsync(async (req, res) => {
+  const result = await ContentService.getSimilarContentFromDB(req.params.contentId);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: 'Similar content retrieved successfully',
+    data: result,
+  });
+});
+
 export const ContentController = {
   searchContent,
   favoriteContent,
@@ -460,6 +526,10 @@ export const ContentController = {
   getSeriesStats,
   getAdminMovies: getAdminMovies,
   getAdminSeries: getAdminSeries,
+  getMovieDetails: getMovieDetails,
+  getMovieAnalyticsEngagement,
+  getMovieAnalyticsOverview,
+  getMovieAnalyticsAudience,
   getSeriesDetails: getSeriesDetails,
   createSeason: createSeason,
   getSeasons: getSeasons,
@@ -481,6 +551,8 @@ export const ContentController = {
   getPresignedUrls: getPresignedUrls,
   completeUpload: completeUpload,
   getContentDetailsPublic: getContentDetailsPublic,
+  getSimilarContentPublic: getSimilarContentPublic,
+  getEpisodesBySeasonPublic: getEpisodesBySeasonPublic,
   getPlaybackUrl: getPlaybackUrl,
   getEpisodePlaybackUrl: getEpisodePlaybackUrl
 };

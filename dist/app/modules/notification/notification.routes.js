@@ -13,11 +13,11 @@ const notification_validation_1 = require("./notification.validation");
 const router = express_1.default.Router();
 // ==================== NOTIFICATIONS (unified for all roles) ====================
 // Fetch notifications + unread count
-router.get('/me', (0, auth_1.default)(user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.SUPER_ADMIN), notification_controller_1.NotificationController.getNotificationFromDB);
+router.get('/me', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), notification_controller_1.NotificationController.getNotificationFromDB);
 // Mark all notifications as read (fixed path BEFORE param path)
-router.patch('/read-all', (0, auth_1.default)(user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.SUPER_ADMIN), notification_controller_1.NotificationController.readAllNotifications);
+router.patch('/read-all', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), notification_controller_1.NotificationController.readAllNotifications);
 // Mark a notification as read
-router.patch('/:notificationId/read', (0, auth_1.default)(user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.SUPER_ADMIN), notification_controller_1.NotificationController.readNotification);
+router.patch('/:notificationId/read', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), notification_controller_1.NotificationController.readNotification);
 // ==================== ADMIN BROADCAST TOOLS ====================
 // Sent notification history
 router.get('/broadcasts', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), notification_controller_1.NotificationController.getSentHistory);

@@ -61,7 +61,7 @@ beforeEach(async () => {
 describe('Recently Watched E2E Tests', () => {
   describe('Track Progress (POST /api/v1/recently-watched/track-progress)', () => {
     it('successfully tracks content progress for a user', async () => {
-      const { user, token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { user, token } = await createAuthUser(USER_ROLES.USER);
       const content = await Content.create({
         title: 'Test Movie',
         description: 'desc',
@@ -103,7 +103,7 @@ describe('Recently Watched E2E Tests', () => {
 
   describe('Get Recently Watched (GET /api/v1/recently-watched)', () => {
     it('successfully retrieves user watch history', async () => {
-      const { user, token } = await createAuthUser(USER_ROLES.BROTHER);
+      const { user, token } = await createAuthUser(USER_ROLES.USER);
       const content = await Content.create({
         title: 'Test Movie',
         description: 'desc',

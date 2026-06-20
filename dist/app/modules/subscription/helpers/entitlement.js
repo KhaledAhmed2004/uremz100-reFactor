@@ -22,7 +22,7 @@ const ACTIVE_STATUSES = new Set([
     subscription_interface_1.SUBSCRIPTION_STATUS.PAST_DUE,
 ]);
 const getUserEntitlement = (userId) => __awaiter(void 0, void 0, void 0, function* () {
-    const sub = yield subscription_model_1.Subscription.findByUser(new mongoose_1.Types.ObjectId(userId));
+    const sub = yield subscription_model_1.Subscription.findByUserOrGuest(new mongoose_1.Types.ObjectId(userId), undefined);
     if (!sub) {
         return {
             plan: subscription_interface_1.SUBSCRIPTION_PLAN.FREE,

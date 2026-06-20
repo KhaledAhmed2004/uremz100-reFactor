@@ -224,7 +224,7 @@ const handleAppleNotification = (signedPayload) => __awaiter(void 0, void 0, voi
         transactionId: decodedTransaction.transactionId,
     });
     const newMetadata = Object.assign(Object.assign({}, (existing.metadata || {})), { lastAppleNotificationUUID: notificationUUID, lastAppleNotificationType: notificationType, lastAppleNotificationSubtype: subtype, lastAppleNotificationAt: new Date().toISOString() });
-    yield subscription_model_1.Subscription.upsertForUser(existing.userId, Object.assign(Object.assign({}, updates), { metadata: newMetadata }));
+    yield subscription_model_1.Subscription.upsertForUserOrGuest(existing.userId, existing.guestId, Object.assign(Object.assign({}, updates), { metadata: newMetadata }));
     logger_1.logger.info(`Apple notification ${notificationType}${subtype ? `/${subtype}` : ''} applied to subscription ${existing._id}`);
     return {
         processed: true,

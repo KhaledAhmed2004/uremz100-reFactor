@@ -5,7 +5,7 @@ const mongoose_1 = require("mongoose");
 const episodeSchema = new mongoose_1.Schema({
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
-    thumbnail: { type: String, required: true },
+    thumbnailUrl: { type: String, required: true },
     videoUrl: { type: String, required: true },
     duration: { type: Number, required: true },
     releaseDate: { type: Date, required: true },

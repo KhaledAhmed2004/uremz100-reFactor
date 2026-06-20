@@ -52,7 +52,7 @@ router.post('/login', loginRateLimit, (0, validateRequest_1.default)(auth_valida
 // Social login (Google / Apple ID token verification)
 router.post('/social-login', socialLoginRateLimit, (0, validateRequest_1.default)(auth_validation_1.AuthValidation.createSocialLoginZodSchema), auth_controller_1.AuthController.socialLogin);
 // User logout — invalidate active sessions/tokens
-router.post('/logout', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.JUMMAH), auth_controller_1.AuthController.logoutUser);
+router.post('/logout', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), auth_controller_1.AuthController.logoutUser);
 // Password reset request — send OTP via email
 router.post('/forgot-password', passwordResetRateLimit, (0, idempotency_1.idempotency)('auth:forgot-password'), (0, validateRequest_1.default)(auth_validation_1.AuthValidation.createForgetPasswordZodSchema), auth_controller_1.AuthController.forgetPassword);
 // OTP verification — verify via code
@@ -60,7 +60,7 @@ router.post('/verify-otp', passwordResetRateLimit, (0, validateRequest_1.default
 // Password reset — set new password with valid token
 router.post('/reset-password', passwordResetRateLimit, (0, idempotency_1.idempotency)('auth:reset-password'), (0, validateRequest_1.default)(auth_validation_1.AuthValidation.createResetPasswordZodSchema), auth_controller_1.AuthController.resetPassword);
 // Change password — authenticated user provides old/new password
-router.post('/change-password', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.BROTHER, user_1.USER_ROLES.SISTER, user_1.USER_ROLES.JUMMAH), (0, validateRequest_1.default)(auth_validation_1.AuthValidation.createChangePasswordZodSchema), auth_controller_1.AuthController.changePassword);
+router.post('/change-password', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), (0, validateRequest_1.default)(auth_validation_1.AuthValidation.createChangePasswordZodSchema), auth_controller_1.AuthController.changePassword);
 // Resend verification OTP — per-user 60s cooldown is enforced in the
 // service; the per-IP cap here protects against email-enumeration sweeps.
 router.post('/resend-otp', resendOtpRateLimit, (0, idempotency_1.idempotency)('auth:resend-otp'), (0, validateRequest_1.default)(auth_validation_1.AuthValidation.createResendOtpZodSchema), auth_controller_1.AuthController.resendVerifyEmail);

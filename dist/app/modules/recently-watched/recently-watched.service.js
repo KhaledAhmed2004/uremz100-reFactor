@@ -56,10 +56,21 @@ const trackProgressInDB = (payload) => __awaiter(void 0, void 0, void 0, functio
         upsert: true,
         new: true,
         setDefaultsOnInsert: true,
-    });
+    }).select('-userId -guestId');
+    // Calculate incremental watch time in seconds
+    let watchDurationDelta = watchedSeconds;
+    if (existingRecord && existingRecord.watchedSeconds < watchedSeconds) {
+        watchDurationDelta = watchedSeconds - existingRecord.watchedSeconds;
+    }
     // If this is the first time watching (no existing record), increment view count
+    const incQuery = { totalWatchTime: watchDurationDelta };
     if (!existingRecord && watchedSeconds > 0) {
-        yield content_model_1.Content.findByIdAndUpdate(contentId, { $inc: { views: 1 } });
+        incQuery.views = 1;
+        incQuery.dailyViews = 1;
+        incQuery.weeklyViews = 1;
+    }
+    if (watchDurationDelta > 0 || !existingRecord) {
+        yield content_model_1.Content.findByIdAndUpdate(contentId, { $inc: incQuery });
     }
     return result;
 });
@@ -67,7 +78,7 @@ const getRecentlyWatchedFromDB = (userId, guestId) => __awaiter(void 0, void 0, 
     if (!userId && !guestId)
         return [];
     const query = userId ? { userId: new mongoose_1.Types.ObjectId(userId) } : { guestId };
-    const cardFields = 'title poster type isPremium isRecent rating';
+    const cardFields = 'title posterUrl type isPremium releaseDate rating publishedAt createdAt';
     const result = yield recently_watched_model_1.RecentlyWatched.find(query)
         .populate('contentId', cardFields)
         .sort({ lastWatchedAt: -1 })
