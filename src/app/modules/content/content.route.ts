@@ -33,7 +33,7 @@ router.get(
   ContentController.getComingSoonContent,
 );
 
-import guestOrAuth from '../../middlewares/guestOrAuth';
+// import guestOrAuth from '../../middlewares/guestOrAuth';
 
 router.get(
   '/:contentId/details',
