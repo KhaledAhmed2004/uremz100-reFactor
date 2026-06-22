@@ -39,8 +39,6 @@ function createAuthUser() {
             revertDate: new Date(),
             dateOfBirth: new Date('1990-01-01'),
             profileImage: '/default-avatar.svg',
-            verificationImage: 'https://example.com/img.jpg',
-            verificationVideo: 'https://example.com/vid.mp4',
             tokenVersion: 0,
         });
         const token = jwtHelper_1.jwtHelper.createToken({ id: user._id, role: user.role, tokenVersion: user.tokenVersion }, config_1.default.jwt.jwt_secret, '1h');

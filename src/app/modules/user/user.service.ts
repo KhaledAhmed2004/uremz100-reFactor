@@ -271,8 +271,7 @@ const getAllUserRolesFromDB = async (query: Record<string, unknown>) => {
               name: 1,
               email: 1,
               role: 1,
-              verificationImage: 1,
-              verificationVideo: 1,
+
               createdAt: 1,
             }
           : {
@@ -556,10 +555,10 @@ const updateUserByAdminInDB = async (id: string, payload: Partial<IUser>) => {
 
   // Whitelist fields admin can update (excluding password/auth info)
   if (payload.name !== undefined) (user as any).name = payload.name;
-  if (payload.revertStory !== undefined) (user as any).revertStory = payload.revertStory;
+  if ((payload as any).revertStory !== undefined) (user as any).revertStory = (payload as any).revertStory;
   if (payload.email !== undefined) (user as any).email = payload.email;
   if (payload.dateOfBirth !== undefined) (user as any).dateOfBirth = payload.dateOfBirth;
-  if (payload.revertDate !== undefined) (user as any).revertDate = payload.revertDate;
+  if ((payload as any).revertDate !== undefined) (user as any).revertDate = (payload as any).revertDate;
   
   if (payload.location !== undefined) {
     (user as any).location = payload.location;
@@ -888,19 +887,17 @@ const confirmEmailChangeFromDB = async (
 // returned — it's a credential that would let a third party hijack
 // push delivery.
 // Public flow: a REJECTED user submits the token they received by email
-// after the admin flipped them, along with a fresh verificationImage +
-// verificationVideo. We validate the token, swap in the new files (and
+// after the admin flipped them. We validate the token, swap in the new profileImage,
 // optionally a new profileImage), unlink the old verification artifacts,
 // reset status to PENDING so the admin queue picks the user up again,
 // and clear the one-time token. The user still cannot log in until an
 // admin approves them again.
 const reverifyAccountFromDB = async (payload: {
   token: string;
-  verificationImage: string;
-  verificationVideo: string;
+
   profileImage?: string;
 }) => {
-  const { token, verificationImage, verificationVideo, profileImage } = payload;
+  const { token, profileImage } = payload;
 
   const dbUser = await User.findOne({
     'reverification.token': token,
@@ -935,15 +932,13 @@ const reverifyAccountFromDB = async (payload: {
 
   // Unlink the old verification files before overwriting. Best-effort —
   // an unlink failure on a missing file shouldn't block re-verification.
-  if (dbUser.verificationImage) unlinkFile(dbUser.verificationImage);
-  if (dbUser.verificationVideo) unlinkFile(dbUser.verificationVideo);
+
   if (profileImage && dbUser.profileImage) unlinkFile(dbUser.profileImage);
 
   const update: Record<string, unknown> = {
     status: USER_STATUS.PENDING,
     isVerified: false,
-    verificationImage,
-    verificationVideo,
+
     reverification: { token: null, expireAt: null },
     rejectionReason: null,
   };

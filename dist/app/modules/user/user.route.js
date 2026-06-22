@@ -20,22 +20,18 @@ const upload = (0, fileUploadHandler_1.default)();
 // Create new user (Public Registration)
 router.post('/', (0, idempotency_1.idempotency)('registration'), upload.fields([
     { name: 'profileImage', maxCount: 1 },
-    { name: 'verificationImage', maxCount: 1 },
-    { name: 'verificationVideo', maxCount: 1 },
 ]), (0, validateRequest_1.default)(user_validation_1.UserValidation.createUserZodSchema), (0, captcha_1.verifyCaptcha)(), user_controller_1.UserController.createUser);
 // Re-verification of a REJECTED account. PUBLIC (no auth) because
 // REJECTED users are blocked by both login and the auth middleware —
 // the only recovery path is the one-time token they received by email
 // when the admin rejected them. Accepts the new verification artefacts
-// (image + video, optional profileImage) as multipart.
+// (optional profileImage) as multipart.
 router.post('/reverify', (0, rateLimit_1.rateLimitMiddleware)({
     windowMs: 3600000, // 1 hour
     max: 5,
     routeName: 'reverify',
 }), (0, idempotency_1.idempotency)('reverify'), upload.fields([
     { name: 'profileImage', maxCount: 1 },
-    { name: 'verificationImage', maxCount: 1 },
-    { name: 'verificationVideo', maxCount: 1 },
 ]), (0, validateRequest_1.default)(user_validation_1.UserValidation.reverifyAccountZodSchema), user_controller_1.UserController.reverifyAccount);
 // Public user details (Authenticated users only) — rate limited
 router.get('/:userId/public', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), (0, rateLimit_1.rateLimitMiddleware)({

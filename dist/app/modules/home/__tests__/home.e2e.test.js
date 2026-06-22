@@ -76,6 +76,7 @@ let mongoServer;
         (0, vitest_1.expect)(rw === null || rw === void 0 ? void 0 : rw.guestId).toBe(guestId);
     }));
     (0, vitest_1.it)('Step 3: Guest creates an account (Data Migration)', () => __awaiter(void 0, void 0, void 0, function* () {
+        var _a;
         // We assume the signup logic in auth.service handles the migration
         // Simulating signup and migration for E2E
         const user = yield user_model_1.User.create({
@@ -88,8 +89,6 @@ let mongoServer;
             revertDate: new Date(),
             dateOfBirth: new Date('1990-01-01'),
             profileImage: '/default-avatar.svg',
-            verificationImage: 'https://example.com/img.jpg',
-            verificationVideo: 'https://example.com/vid.mp4',
         });
         // Simulate Auth Service Migration Logic:
         yield recently_watched_model_1.RecentlyWatched.updateMany({ guestId: guestId }, { $set: { userId: user._id }, $unset: { guestId: "" } });
@@ -97,7 +96,7 @@ let mongoServer;
         const rw = yield recently_watched_model_1.RecentlyWatched.findOne({ userId: user._id });
         (0, vitest_1.expect)(rw).not.toBeNull();
         (0, vitest_1.expect)(rw === null || rw === void 0 ? void 0 : rw.guestId).toBeUndefined();
-        (0, vitest_1.expect)(rw.userId.toString()).toBe(user._id.toString());
+        (0, vitest_1.expect)((_a = rw === null || rw === void 0 ? void 0 : rw.userId) === null || _a === void 0 ? void 0 : _a.toString()).toBe(user._id.toString());
         // Simulate logging in and getting a token (we'll just fake it for the test logic)
         userToken = 'Bearer fake-jwt-token-for-e2e';
     }));

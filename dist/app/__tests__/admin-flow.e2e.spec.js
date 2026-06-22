@@ -604,6 +604,25 @@ Feature: Movies Management
             (0, vitest_1.expect)(res.body.data.demographics).toBeDefined();
             (0, vitest_1.expect)(res.body.data.geography).toBeDefined();
         }));
+        (0, vitest_1.it)('should set requiredCoin on a movie successfully', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: SET REQUIRED COIN
+Feature: Movies Management
+  Scenario: Admin sets a required coin value for a movie
+    Given the admin has selected a movie
+    When the admin updates the requiredCoin field
+    Then the system updates the movie with the new coin requirement
+`);
+            const payload = { requiredCoin: 50 };
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .patch(`/api/v1/contents/movies/${targetContentId}`)
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send(payload);
+            (0, testLogger_1.logApi)('PATCH', '/api/v1/contents/movies/:movieId', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'PATCH-ADMIN-MOVIE-REQUIRED-COIN', 'Admin sets requiredCoin for a movie');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            (0, vitest_1.expect)(res.body.data.requiredCoin).toBe(50);
+        }));
         (0, vitest_1.it)('should delete a movie successfully', () => __awaiter(void 0, void 0, void 0, function* () {
             console.info(`
 📖 BDD SCENARIO: DELETE MOVIE
@@ -634,6 +653,7 @@ Feature: Movies Management
         }));
     });
     (0, vitest_1.describe)('4.2. Series Management Flow', () => {
+        let targetSeriesId;
         (0, vitest_1.it)('should fetch the overall series statistics successfully', () => __awaiter(void 0, void 0, void 0, function* () {
             console.info(`
 📖 BDD SCENARIO: FETCH SERIES STATS
@@ -650,6 +670,245 @@ Feature: Series Management
             (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
             (0, vitest_1.expect)(res.body.success).toBe(true);
             (0, vitest_1.expect)(res.body.data).toBeDefined();
+        }));
+        (0, vitest_1.it)('should create a new series successfully', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: CREATE SERIES
+Feature: Series Management
+  Scenario: Admin creates a new series
+    Given the admin has all series details (title, description, genres, etc.)
+    When the admin submits the series creation form
+    Then the system validates the input
+    And stores the new series in the database
+`);
+            const payload = {
+                title: 'E2E Testing Series',
+                description: 'This is an amazing series created by E2E test.',
+                releaseYear: 2026,
+                status: 'DRAFT',
+                planStatus: ['FREE'],
+                genres: ['60d5ecb54cb7c1a3b8d4f7a1'],
+            };
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .post('/api/v1/contents/series')
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send(payload);
+            (0, testLogger_1.logApi)('POST', '/api/v1/contents/series', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'POST-ADMIN-SERIES', 'Admin creates a new series');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.CREATED);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            targetSeriesId = res.body.data.id || res.body.data._id;
+            (0, vitest_1.expect)(targetSeriesId).toBeDefined();
+        }));
+        (0, vitest_1.it)('should fetch the paginated list of series', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: FETCH ADMIN SERIES
+Feature: Series Management
+  Scenario: Admin views all series in the CMS
+    Given the admin is on the Series Management table
+    When the admin fetches the series list
+    Then the system returns a paginated list of series
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .get('/api/v1/contents/series?limit=5')
+                .set('Authorization', `Bearer ${adminToken}`);
+            (0, testLogger_1.logApi)('GET', '/api/v1/contents/series', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { limit: 5 } }, res.body, 'GET-ADMIN-SERIES-LIST', 'Admin fetches paginated series list');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            (0, vitest_1.expect)(Array.isArray(res.body.data)).toBe(true);
+        }));
+        (0, vitest_1.it)('should search for series by title', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: SEARCH SERIES
+Feature: Series Management
+  Scenario: Admin searches for a series by title
+    Given the admin is on the Series Management page
+    When the admin enters a series title in the search bar
+    Then the system returns the matching series
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .get('/api/v1/contents/series?searchTerm=Test')
+                .set('Authorization', `Bearer ${adminToken}`);
+            (0, testLogger_1.logApi)('GET', '/api/v1/contents/series?searchTerm=Test', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { searchTerm: 'Test' } }, res.body, 'GET-ADMIN-SERIES-SEARCH', 'Admin searches for a series by title');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            (0, vitest_1.expect)(Array.isArray(res.body.data)).toBe(true);
+        }));
+        (0, vitest_1.it)('should filter series by status', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: FILTER SERIES BY STATUS
+Feature: Series Management
+  Scenario: Admin filters series by their status
+    Given the admin is on the Series Management page
+    When the admin selects the 'PUBLISHED' status filter
+    Then the system returns only published series
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .get('/api/v1/contents/series?status=PUBLISHED')
+                .set('Authorization', `Bearer ${adminToken}`);
+            (0, testLogger_1.logApi)('GET', '/api/v1/contents/series?status=PUBLISHED', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { status: 'PUBLISHED' } }, res.body, 'GET-ADMIN-SERIES-FILTER-STATUS', 'Admin filters series by status');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            if (res.body.data.length > 0) {
+                (0, vitest_1.expect)(res.body.data[0].status).toBe('PUBLISHED');
+            }
+        }));
+        (0, vitest_1.it)('should filter series by availability (planStatus)', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: FILTER SERIES BY AVAILABILITY
+Feature: Series Management
+  Scenario: Admin filters series by planStatus
+    Given the admin is on the Series Management page
+    When the admin selects the 'FREE' plan filter
+    Then the system returns only free series
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .get('/api/v1/contents/series?planStatus=FREE')
+                .set('Authorization', `Bearer ${adminToken}`);
+            (0, testLogger_1.logApi)('GET', '/api/v1/contents/series?planStatus=FREE', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { planStatus: 'FREE' } }, res.body, 'GET-ADMIN-SERIES-FILTER-PLAN', 'Admin filters series by availability');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            if (res.body.data.length > 0) {
+                (0, vitest_1.expect)(res.body.data[0].planStatus).toContain('FREE');
+            }
+        }));
+        (0, vitest_1.it)('should update series details securely', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: UPDATE SERIES
+Feature: Series Management
+  Scenario: Admin edits a specific series
+    Given the admin has selected a series to edit
+    When the admin updates the series title
+    Then the system reflects the updated details
+`);
+            const payload = { title: 'E2E Testing Series - Updated' };
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .patch(`/api/v1/contents/series/${targetSeriesId}`)
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send(payload);
+            (0, testLogger_1.logApi)('PATCH', '/api/v1/contents/series/:seriesId', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: payload }, res.body, 'PATCH-ADMIN-SERIES', 'Admin edits series details');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            (0, vitest_1.expect)(res.body.data.title).toBe('E2E Testing Series - Updated');
+        }));
+        (0, vitest_1.it)('should update series status', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: PUBLISH SERIES
+Feature: Series Management
+  Scenario: Admin changes series status to PUBLISHED
+    Given the admin has finalized a series
+    When the admin changes the status from DRAFT to PUBLISHED
+    Then the system marks the series as live
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .patch(`/api/v1/contents/series/${targetSeriesId}/status`)
+                .set('Authorization', `Bearer ${adminToken}`)
+                .send({ status: 'PUBLISHED' });
+            (0, testLogger_1.logApi)('PATCH', '/api/v1/contents/series/:seriesId/status', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { status: 'PUBLISHED' } }, res.body, 'PATCH-ADMIN-SERIES-STATUS', 'Admin changes series status');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            (0, vitest_1.expect)(res.body.data.status).toBe('PUBLISHED');
+        }));
+        (0, vitest_1.it)('should fetch specific series details', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: VIEW SERIES DETAILS
+Feature: Series Management
+  Scenario: Admin views full details of a specific series
+    Given the admin clicks on a series
+    When the system requests the series details
+    Then the system returns the full document
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .get(`/api/v1/contents/series/${targetSeriesId}/details`)
+                .set('Authorization', `Bearer ${adminToken}`);
+            (0, testLogger_1.logApi)('GET', '/api/v1/contents/series/:seriesId/details', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'GET-ADMIN-SERIES-DETAILS', 'Admin fetches specific series details');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            (0, vitest_1.expect)(res.body.data.id || res.body.data._id).toBe(targetSeriesId);
+        }));
+        let targetSeasonId;
+        (0, vitest_1.it)('should create a season for the series', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: CREATE SEASON
+Feature: Series Management
+  Scenario: Admin creates a season
+    Given the admin has a series
+    When the admin submits season details
+    Then the system creates the season
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .post(`/api/v1/contents/series/${targetSeriesId}/seasons`)
+                .set('Authorization', `Bearer ${adminToken}`)
+                .field('title', 'Season 1')
+                .field('seasonNumber', 1)
+                .field('posterUrl', 'https://test.com/poster.jpg')
+                .field('trailerUrl', 'https://test.com/trailer.mp4');
+            (0, testLogger_1.logApi)('POST', '/api/v1/contents/series/:seriesId/seasons', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { title: 'Season 1', seasonNumber: 1, posterUrl: 'https://test.com/poster.jpg', trailerUrl: 'https://test.com/trailer.mp4' } }, res.body, 'POST-ADMIN-SEASON', 'Admin creates a season');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.CREATED);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            targetSeasonId = res.body.data._id || res.body.data.id;
+        }));
+        (0, vitest_1.it)('should create an episode for the season', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: CREATE EPISODE
+Feature: Series Management
+  Scenario: Admin creates an episode
+    Given the admin has a season
+    When the admin submits episode details
+    Then the system creates the episode
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .post(`/api/v1/contents/series/${targetSeriesId}/episodes`)
+                .set('Authorization', `Bearer ${adminToken}`)
+                .field('title', 'Episode 1: The Beginning')
+                .field('description', 'First episode description')
+                .field('duration', 45)
+                .field('releaseDate', new Date().toISOString())
+                .field('planStatus', 'FREE')
+                .field('status', 'PUBLISHED')
+                .field('seasonId', targetSeasonId || '6a35811b959603e76aa75b28') // Prevent crash if targetSeasonId is somehow undefined
+                .field('seasonNumber', 1)
+                .field('episodeNumber', 1)
+                .field('videoUrl', 'https://test.com/video.mp4')
+                .field('thumbnailUrl', 'https://test.com/thumb.jpg');
+            (0, testLogger_1.logApi)('POST', '/api/v1/contents/series/:seriesId/episodes', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, body: { title: 'Episode 1' } }, res.body, 'POST-ADMIN-EPISODE', 'Admin creates an episode');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.CREATED);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+        }));
+        (0, vitest_1.it)('should fetch paginated episodes of a series', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: FETCH SERIES EPISODES
+Feature: Series Management
+  Scenario: Admin views the list of episodes for a specific series or season
+    Given the admin is managing a specific series
+    When the admin requests the list of episodes
+    Then the system returns a paginated list of episodes
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .get(`/api/v1/contents/series/${targetSeriesId}/episodes?limit=10&seasonId=${targetSeasonId}`)
+                .set('Authorization', `Bearer ${adminToken}`);
+            (0, testLogger_1.logApi)('GET', '/api/v1/contents/series/:seriesId/episodes', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` }, query: { limit: 10, seasonId: '<SEASON_ID>' } }, res.body, 'GET-ADMIN-SERIES-EPISODES', 'Admin fetches paginated series episodes');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            (0, vitest_1.expect)(res.body.data).toBeDefined();
+            (0, vitest_1.expect)(Array.isArray(res.body.data)).toBe(true);
+            (0, vitest_1.expect)(res.body.data.length).toBeGreaterThan(0);
+            (0, vitest_1.expect)(res.body.meta).toBeDefined();
+        }));
+        (0, vitest_1.it)('should delete a series successfully', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: DELETE SERIES
+Feature: Series Management
+  Scenario: Admin deletes a single series
+    Given the admin has a series to delete
+    When the admin requests to delete the series
+    Then the system permanently removes the series and all nested seasons/episodes
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .delete(`/api/v1/contents/series/${targetSeriesId}`)
+                .set('Authorization', `Bearer ${adminToken}`);
+            (0, testLogger_1.logApi)('DELETE', '/api/v1/contents/series/:seriesId', { headers: { Authorization: `Bearer <ADMIN_TOKEN>` } }, res.body, 'DELETE-ADMIN-SERIES', 'Admin deletes a single series');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
         }));
     });
     (0, vitest_1.describe)('5. Genres Management Flow', () => {

@@ -34,8 +34,7 @@ async function createAuthUser(role: string = USER_ROLES.SUPER_ADMIN, nameSuffix 
     revertDate: new Date(),
     dateOfBirth: new Date('1990-01-01'),
     profileImage: '/default-avatar.svg',
-    verificationImage: 'https://example.com/img.jpg',
-    verificationVideo: 'https://example.com/vid.mp4',
+
     tokenVersion: 0,
   });
 

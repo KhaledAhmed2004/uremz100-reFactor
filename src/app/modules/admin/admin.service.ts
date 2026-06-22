@@ -8,6 +8,7 @@ import { SubscriptionEvent } from '../subscription/subscription-event.model';
 import { SUBSCRIPTION_STATUS, SUBSCRIPTION_PLAN } from '../subscription/subscription.interface';
 import { Review } from '../review/review.model';
 import { Content } from '../content/content.model';
+import { Episode } from '../content/episode.model';
 import { Visitor } from '../visitor/visitor.model';
 import QueryBuilder from '../../builder/QueryBuilder';
 import { USER_ROLES } from '../../../enums/user';
@@ -695,7 +696,7 @@ const getMovieAnalyticsOverviewData = async (id: string) => {
 
   const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
   const totalViewsLast48Hours = viewersData.filter(v => {
-    const watchedAt = new Date(v.lastWatchedAt || v.createdAt);
+    const watchedAt = new Date(v.lastWatchedAt || (v as any).createdAt);
     return watchedAt >= fortyEightHoursAgo;
   }).length;
 
@@ -707,7 +708,7 @@ const getMovieAnalyticsOverviewData = async (id: string) => {
     hourEnd.setHours(hourStart.getHours() + 1, 0, 0, 0);
 
     const viewsInHour = viewersData.filter(v => {
-      const watchedAt = new Date(v.lastWatchedAt || v.createdAt);
+      const watchedAt = new Date(v.lastWatchedAt || (v as any).createdAt);
       return watchedAt >= hourStart && watchedAt < hourEnd;
     }).length;
 
@@ -791,7 +792,7 @@ const getMovieAnalyticsEngagementData = async (id: string) => {
 
 
   // 3. Retention Chart (Mocked based on average retention)
-  const retentionChart = [];
+  const retentionChart: any[] = [];
   const durationMinutes = movie.duration || 120;
   const timePoints = [0, 0.5, 1, 2, 5, 10, 15, 20, 24.25, 30, 40, 50, 60];
 
@@ -1234,6 +1235,406 @@ const getMovieAnalyticsRevenueData = async (id: string) => {
 
 
 
+
+// --- Episode Analytics ---
+
+const getEpisodeAnalyticsOverviewData = async (id: string) => {
+  const episode = await Episode.findById(id);
+  if (!episode) return null;
+
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+  // 1. Get real watch statistics from RecentlyWatched
+  const viewersData = await RecentlyWatched.find({ contentId: new Types.ObjectId(id) });
+  const totalWatchTimeSeconds = viewersData.reduce((sum, v) => sum + (v.watchedSeconds || 0), 0);
+  const totalWatchTimeHours = totalWatchTimeSeconds > 0 ? Math.round(totalWatchTimeSeconds / 3600) : 0;
+
+  // 2. Growth calculation
+  const currentPeriodViews = await RecentlyWatched.countDocuments({
+    contentId: new Types.ObjectId(id),
+    createdAt: { $gte: thirtyDaysAgo }
+  });
+
+  const previousPeriodViews = await RecentlyWatched.countDocuments({
+    contentId: new Types.ObjectId(id),
+    createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo }
+  });
+
+  const viewGrowth = previousPeriodViews > 0 
+    ? ((currentPeriodViews - previousPeriodViews) / previousPeriodViews) * 100 
+    : (currentPeriodViews > 0 ? 100 : 0);
+
+  // You can similarly calculate watch time growth if you want, but for now we'll map view growth
+  const viewGrowthAbs = Math.abs(Number(viewGrowth.toFixed(1)));
+  const viewDirection = viewGrowth >= 0 ? 'increase' : 'decrease';
+
+  const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  const totalViewsLast48Hours = viewersData.filter(v => {
+    const watchedAt = new Date(v.lastWatchedAt || (v as any).createdAt);
+    return watchedAt >= fortyEightHoursAgo;
+  }).length;
+
+  const viewsByHour = [];
+  for (let i = 0; i < 10; i++) {
+    const hourStart = new Date(now);
+    hourStart.setHours(now.getHours() - i, 0, 0, 0);
+    const hourEnd = new Date(hourStart);
+    hourEnd.setHours(hourStart.getHours() + 1, 0, 0, 0);
+
+    const viewsInHour = viewersData.filter(v => {
+      const watchedAt = new Date(v.lastWatchedAt || (v as any).createdAt);
+      return watchedAt >= hourStart && watchedAt < hourEnd;
+    }).length;
+
+    viewsByHour.push({
+      hour: hourStart.toISOString(),
+      views: viewsInHour
+    });
+  }
+  
+  // Sort chronologically (oldest to newest hour)
+  viewsByHour.reverse();
+
+  return {
+    views: {
+      value: episode.views,
+      change: {
+        percentage: viewGrowthAbs,
+        direction: viewDirection
+      }
+    },
+    watchTime: {
+      value: totalWatchTimeHours,
+      unit: 'hours',
+      change: {
+        percentage: viewGrowthAbs, // using same growth percentage for now
+        direction: viewDirection
+      }
+    },
+    performance_chart: {
+      labels: ['Day 1', 'Day 3', 'Day 5', 'Day 7', 'Day 10', 'Day 14', 'Day 21', 'Day 28'],
+      this_video: [10000, 25000, 35000, 45000, 55000, 65000, 75000, episode.views],
+      typical_performance: [12000, 28000, 38000, 48000, 58000, 68000, 78000, 81000],
+    },
+    realtimeAnalytics: {
+      totalViewsLast48Hours,
+      viewsByHour
+    },
+  };
+};
+
+
+
+const getEpisodeAnalyticsEngagementData = async (id: string) => {
+  const episode = await Episode.findById(id);
+  if (!episode) return null;
+
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+  // 1. Get real watch statistics from RecentlyWatched
+  const viewersData = await RecentlyWatched.find({ contentId: new Types.ObjectId(id) });
+  const totalViewers = viewersData.length;
+
+  // 2. Growth calculation
+  const currentPeriodViews = await RecentlyWatched.countDocuments({
+    contentId: new Types.ObjectId(id),
+    createdAt: { $gte: thirtyDaysAgo }
+  });
+
+  const previousPeriodViews = await RecentlyWatched.countDocuments({
+    contentId: new Types.ObjectId(id),
+    createdAt: { $gte: sixtyDaysAgo, $lt: thirtyDaysAgo }
+  });
+
+  const viewGrowth = previousPeriodViews > 0 
+    ? ((currentPeriodViews - previousPeriodViews) / previousPeriodViews) * 100 
+    : (currentPeriodViews > 0 ? 100 : 0);
+
+  // 3. Real Engagement Metrics
+  const totalWatchTimeSeconds = viewersData.reduce((sum, v) => sum + (v.watchedSeconds || 0), 0);
+  const avgWatchTimeSeconds = totalViewers > 0 ? totalWatchTimeSeconds / totalViewers : 0;
+  const avgRetentionPercentage = episode.duration > 0 
+    ? (avgWatchTimeSeconds / (episode.duration * 60)) * 100 
+    : 0;
+
+  const formatDuration = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = Math.floor(secs % 60);
+    return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+
+  // 3. Retention Chart (Mocked based on average retention)
+  const retentionChart: any[] = [];
+  const durationMinutes = episode.duration || 120;
+  const timePoints = [0, 0.5, 1, 2, 5, 10, 15, 20, 24.25, 30, 40, 50, 60];
+
+  let currentRetention = 100;
+  let typicalRetention = 100;
+  timePoints.forEach(min => {
+    if (min <= durationMinutes) {
+      let timeLabel = `${Math.floor(min)}:00`;
+      if (min === 0) timeLabel = '0:00';
+      else if (min === 0.5) timeLabel = '0:30';
+      else if (min === 24.25) timeLabel = '24:15';
+      else if (min < 10) timeLabel = `${Math.floor(min)}:00`;
+      
+      retentionChart.push({
+        time: timeLabel,
+        percentage: Number(currentRetention.toFixed(1)),
+        typicalPercentage: Number(typicalRetention.toFixed(1))
+      });
+      
+      // Decrease retention
+      currentRetention = currentRetention - (Math.random() * 8 + 2);
+      typicalRetention = typicalRetention - (Math.random() * 7 + 3);
+      
+      // Introduce a fake "spike" at 24:15 like the chart
+      if (min === 20) {
+        currentRetention += 15;
+      }
+
+      if (currentRetention < 0) currentRetention = 0;
+      if (typicalRetention < 0) typicalRetention = 0;
+    }
+  });
+
+  const retentionAt30s = retentionChart.find(c => c.time === '0:30')?.percentage || 0;
+
+  const viewGrowthAbs = Math.abs(Number(viewGrowth.toFixed(1)));
+  const viewDirection = viewGrowth >= 0 ? 'increase' : 'decrease';
+  const avgViewDurationGrowthAbs = Math.abs(Number((viewGrowth * 0.8).toFixed(1)));
+  const avgViewDurationDirection = viewGrowth * 0.8 >= 0 ? 'increase' : 'decrease';
+
+  const baseValue = Number((totalWatchTimeSeconds / 3600).toFixed(0)) || 80000;
+  const watchTimeGrowth = {
+    labels: ['Day 1', 'Day 3', 'Day 5', 'Day 7', 'Day 10', 'Day 14', 'Day 21', 'Day 28'],
+    datasets: [
+      {
+        name: 'This video',
+        data: [
+          baseValue * 0.15, baseValue * 0.17, baseValue * 0.23, baseValue * 0.32, 
+          baseValue * 0.45, baseValue * 0.60, baseValue * 0.81, baseValue
+        ].map(Math.round)
+      },
+      {
+        name: 'Typical performance',
+        data: [
+          baseValue * 0.10, baseValue * 0.12, baseValue * 0.17, baseValue * 0.22, 
+          baseValue * 0.27, baseValue * 0.35, baseValue * 0.43, baseValue * 0.52
+        ].map(Math.round)
+      }
+    ]
+  };
+
+  return {
+    watchTime: {
+      value: baseValue,
+      unit: 'hours',
+      change: {
+        percentage: viewGrowthAbs,
+        direction: viewDirection
+      }
+    },
+    avgViewDuration: {
+      value: formatDuration(avgWatchTimeSeconds),
+      change: {
+        percentage: avgViewDurationGrowthAbs,
+        direction: avgViewDurationDirection
+      }
+    },
+    retention: {
+      avgDuration: formatDuration(avgWatchTimeSeconds),
+      avgPercentage: Number(avgRetentionPercentage.toFixed(1)),
+      at30Sec: { 
+        value: retentionAt30s,
+        status: retentionAt30s > 70 ? 'Above typical' : retentionAt30s > 50 ? 'Typical' : 'Below typical'
+      },
+      chart: retentionChart,
+    },
+    watchTimeGrowth,
+  };
+};
+
+
+
+const getEpisodeAnalyticsAudienceData = async (id: string) => {
+  const episode = await Episode.findById(id);
+  if (!episode) return null;
+
+  // 1. Get all users who watched this content
+  const viewers = await RecentlyWatched.aggregate([
+    { $match: { contentId: new Types.ObjectId(id) } },
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'user'
+      }
+    },
+    { $unwind: '$user' },
+    {
+      $lookup: {
+        from: 'subscriptions',
+        localField: 'userId',
+        foreignField: 'userId',
+        as: 'subscription'
+      }
+    },
+    {
+      $addFields: {
+        userPlan: { $ifNull: [{ $arrayElemAt: ['$subscription.plan', 0] }, 'FREE'] },
+        userGender: '$user.gender',
+        userDob: '$user.dateOfBirth',
+        userCountry: '$user.country'
+      }
+    }
+  ]);
+
+  if (viewers.length === 0) {
+    return {
+      watchTimeFromSubscribers: [
+        { type: 'VIP Weekly', percentage: 0 },
+        { type: 'VIP Monthly', percentage: 0 },
+        { type: 'VIP Yearly', percentage: 0 },
+        { type: 'Not Subscribed', percentage: 0 },
+      ],
+      demographics: {
+        gender: [
+          { gender: 'Male', percentage: 0 },
+          { gender: 'Female', percentage: 0 },
+          { gender: 'Untracked', percentage: 0 },
+        ],
+        age: [
+          { range: '3-17', percentage: 0 },
+          { range: '18-24', percentage: 0 },
+          { range: '25-34', percentage: 0 },
+          { range: '35-44', percentage: 0 },
+          { range: '45-54', percentage: 0 },
+          { range: '55-64', percentage: 0 },
+          { range: '65+', percentage: 0 },
+          { range: 'Untracked', percentage: 0 },
+        ],
+      },
+      geography: [],
+    };
+  }
+
+  const totalViewers = viewers.length;
+
+  // 2. Watch Time (Views) From Subscribers
+  const planCounts = viewers.reduce((acc: any, v) => {
+    const plan = v.userPlan;
+    acc[plan] = (acc[plan] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Mapping plans to requested types (This is an approximation based on current plan names)
+  const watchTimeFromSubscribers = [
+    { type: 'VIP Weekly', percentage: Number(((planCounts['WEEKLY'] || 0) / totalViewers * 100).toFixed(1)) },
+    { type: 'VIP Monthly', percentage: Number(((planCounts['MONTHLY'] || 0) / totalViewers * 100).toFixed(1)) },
+    { type: 'VIP Yearly', percentage: Number(((planCounts['YEARLY'] || 0) / totalViewers * 100).toFixed(1)) },
+    { type: 'Not Subscribed', percentage: Number(((planCounts['FREE'] || 0) / totalViewers * 100).toFixed(1)) },
+  ];
+
+  // 3. Demographics - Gender
+  const genderCounts = viewers.reduce((acc: any, v) => {
+    const gender = v.userGender?.toLowerCase();
+    if (gender === 'male') {
+      acc.male++;
+    } else if (gender === 'female') {
+      acc.female++;
+    } else {
+      acc.untracked++;
+    }
+    return acc;
+  }, { male: 0, female: 0, untracked: 0 });
+
+  const totalGender = totalViewers > 0 ? totalViewers : 1;
+  const genderStats = [
+    { gender: 'Male', percentage: Number((genderCounts.male / totalGender * 100).toFixed(1)) },
+    { gender: 'Female', percentage: Number((genderCounts.female / totalGender * 100).toFixed(1)) },
+    { gender: 'Untracked', percentage: Number((genderCounts.untracked / totalGender * 100).toFixed(1)) },
+  ];
+
+  // 4. Demographics - Age
+  const calculateAge = (dob: string) => {
+    if (!dob) return null;
+    const birthDate = new Date(dob);
+    if (isNaN(birthDate.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const ageRanges = [
+    { range: '3-17', min: 3, max: 17, count: 0 },
+    { range: '18-24', min: 18, max: 24, count: 0 },
+    { range: '25-34', min: 25, max: 34, count: 0 },
+    { range: '35-44', min: 35, max: 44, count: 0 },
+    { range: '45-54', min: 45, max: 54, count: 0 },
+    { range: '55-64', min: 55, max: 64, count: 0 },
+    { range: '65+', min: 65, max: 150, count: 0 },
+    { range: 'Untracked', min: -1, max: -1, count: 0 },
+  ];
+
+  let totalAgeKnown = 0;
+  viewers.forEach(v => {
+    totalAgeKnown++;
+    const age = calculateAge(v.userDob);
+    if (age !== null) {
+      const range = ageRanges.find(r => age >= r.min && age <= r.max);
+      if (range) {
+        range.count++;
+      } else {
+        const untracked = ageRanges.find(r => r.range === 'Untracked');
+        if (untracked) untracked.count++;
+      }
+    } else {
+      const untracked = ageRanges.find(r => r.range === 'Untracked');
+      if (untracked) untracked.count++;
+    }
+  });
+
+  const ageStats = ageRanges.map(r => ({
+    range: r.range,
+    percentage: totalAgeKnown > 0 ? Number((r.count / totalAgeKnown * 100).toFixed(1)) : 0
+  }));
+
+  // 5. Geography
+  const countryCounts = viewers.reduce((acc: any, v) => {
+    const country = v.userCountry || 'Unknown';
+    acc[country] = (acc[country] || 0) + 1;
+    return acc;
+  }, {});
+
+  const geography = Object.entries(countryCounts)
+    .map(([country, count]) => ({ country, count: count as number }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  return {
+    watchTimeFromSubscribers,
+    demographics: {
+      gender: genderStats,
+      age: ageStats,
+    },
+    geography,
+  };
+};
+
+
+
 export const AdminService = {
   getAdminDashboardStats,
   getVisitorAnalyticsData,
@@ -1246,5 +1647,8 @@ export const AdminService = {
   getMovieAnalyticsOverviewData,
   getMovieAnalyticsEngagementData,
   getMovieAnalyticsAudienceData,
-  getMovieAnalyticsRevenueData
+  getMovieAnalyticsRevenueData,
+  getEpisodeAnalyticsOverviewData,
+  getEpisodeAnalyticsEngagementData,
+  getEpisodeAnalyticsAudienceData
 };

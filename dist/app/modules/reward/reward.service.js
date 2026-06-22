@@ -418,6 +418,61 @@ const claimProfileCompletionReward = (ownerQuery) => __awaiter(void 0, void 0, v
         throw error;
     }
 });
+const deductCoinsForUnlock = (userId, amount) => __awaiter(void 0, void 0, void 0, function* () {
+    const session = yield (0, mongoose_1.startSession)();
+    session.startTransaction();
+    try {
+        // We pass { user: userId } as the ownerQuery.
+        const ownerQuery = { user: userId };
+        const { wallet } = yield getOrCreateWalletAndProgress(ownerQuery, session);
+        const { bonusBalance, activeLedgers } = getActiveBonus(wallet.bonusLedger);
+        if (wallet.goldBalance + bonusBalance < amount) {
+            throw new ApiError_1.default(http_status_codes_1.StatusCodes.PAYMENT_REQUIRED, 'Insufficient coin balance to unlock this content');
+        }
+        let amountToDeduct = amount;
+        // Prioritize deducting from active bonus ledgers (sort by earliest expiration)
+        if (bonusBalance > 0 && amountToDeduct > 0) {
+            const sortedLedgers = activeLedgers.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+            for (const ledger of sortedLedgers) {
+                if (amountToDeduct <= 0)
+                    break;
+                if (ledger.amount <= amountToDeduct) {
+                    amountToDeduct -= ledger.amount;
+                    ledger.amount = 0;
+                }
+                else {
+                    ledger.amount -= amountToDeduct;
+                    amountToDeduct = 0;
+                }
+            }
+            // Re-assign back to wallet. Filter out ledgers with 0 amount to clean up.
+            wallet.bonusLedger = wallet.bonusLedger.filter(l => l.amount > 0);
+        }
+        // If there's still an amount left, deduct from goldBalance
+        if (amountToDeduct > 0) {
+            wallet.goldBalance -= amountToDeduct;
+        }
+        yield wallet.save({ session });
+        yield reward_model_1.Transaction.create([
+            {
+                wallet: wallet._id,
+                amount,
+                type: reward_interface_1.TransactionType.SPEND,
+                currencyType: reward_interface_1.CurrencyType.GOLD, // Or MIXED, but GOLD is fine as a generic spend
+                source: reward_interface_1.TransactionSource.SPEND_UNLOCK,
+                description: `Spent ${amount} coins to unlock content`,
+            },
+        ], { session });
+        yield session.commitTransaction();
+        session.endSession();
+        return { success: true, amountDeducted: amount };
+    }
+    catch (error) {
+        yield session.abortTransaction();
+        session.endSession();
+        throw error;
+    }
+});
 exports.RewardService = {
     getWalletDetails,
     claimWatchTimeReward,
@@ -429,4 +484,5 @@ exports.RewardService = {
     claimBindEmailReward,
     claimLoginReward,
     claimProfileCompletionReward,
+    deductCoinsForUnlock,
 };

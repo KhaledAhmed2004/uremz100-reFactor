@@ -23,6 +23,7 @@ const episodeSchema = new mongoose_1.Schema({
     seasonId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Season', required: true },
     seasonNumber: { type: Number, required: true },
     episodeNumber: { type: Number, required: true },
+    requiredCoin: { type: Number, default: 0 },
 }, {
     timestamps: true,
 });

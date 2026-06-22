@@ -13,7 +13,7 @@ import config from '../../../../config';
 // Fix JWT Secret Error during testing
 if (!config.jwt) config.jwt = {} as any;
 config.jwt.jwt_secret = 'test-secret-key-for-e2e';
-config.jwt.jwt_expires_in = '1d';
+config.jwt.jwt_expire_in = '1d';
 
 let mongoServer: MongoMemoryServer;
 
@@ -84,8 +84,7 @@ describe('E2E: Guest User to Registered User Flow', () => {
       revertDate: new Date(),
       dateOfBirth: new Date('1990-01-01'),
       profileImage: '/default-avatar.svg',
-      verificationImage: 'https://example.com/img.jpg',
-      verificationVideo: 'https://example.com/vid.mp4',
+
     });
 
     // Simulate Auth Service Migration Logic:
@@ -98,7 +97,7 @@ describe('E2E: Guest User to Registered User Flow', () => {
     const rw = await RecentlyWatched.findOne({ userId: user._id });
     expect(rw).not.toBeNull();
     expect(rw?.guestId).toBeUndefined();
-    expect(rw?.userId.toString()).toBe(user._id.toString());
+    expect(rw?.userId?.toString()).toBe(user._id.toString());
     
     // Simulate logging in and getting a token (we'll just fake it for the test logic)
     userToken = 'Bearer fake-jwt-token-for-e2e';

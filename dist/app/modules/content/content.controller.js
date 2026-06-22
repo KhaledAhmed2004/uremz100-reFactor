@@ -204,6 +204,28 @@ const getEpisodePlaybackUrl = (0, catchAsync_1.default)((req, res) => __awaiter(
         data: result,
     });
 }));
+const unlockContent = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const { contentId } = req.params;
+    const result = yield content_service_1.ContentService.unlockContentInDB(user.id, contentId);
+    (0, sendResponse_1.default)(res, {
+        success: true,
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        message: 'Content unlocked successfully',
+        data: result,
+    });
+}));
+const unlockEpisode = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = req.user;
+    const { episodeId } = req.params;
+    const result = yield content_service_1.ContentService.unlockEpisodeInDB(user.id, episodeId);
+    (0, sendResponse_1.default)(res, {
+        success: true,
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        message: 'Episode unlocked successfully',
+        data: result,
+    });
+}));
 const createSeason = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { seriesId } = req.params;
     const payload = Object.assign({}, req.body);
@@ -211,6 +233,9 @@ const createSeason = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
         const files = req.files;
         if (files['posterFile']) {
             payload.posterUrl = files['posterFile'][0].location || files['posterFile'][0].path;
+        }
+        if (files['trailerFile']) {
+            payload.trailerUrl = files['trailerFile'][0].location || files['trailerFile'][0].path;
         }
     }
     const result = yield content_service_1.ContentService.createSeasonToDB(seriesId, payload);
@@ -341,20 +366,6 @@ const createMovie = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
 }));
 const createSeries = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const payload = Object.assign({}, req.body);
-    // Handle files from fileUploadHandler
-    if (req.files) {
-        const files = req.files;
-        if (files['trailerFile'])
-            payload.trailerUrl =
-                files['trailerFile'][0].location || files['trailerFile'][0].path;
-        if (files['posterFile'])
-            payload.posterUrl =
-                files['posterFile'][0].location || files['posterFile'][0].path;
-        if (files['thumbnailFile'])
-            payload.thumbnailUrl =
-                files['thumbnailFile'][0].location ||
-                    files['thumbnailFile'][0].path;
-    }
     const result = yield content_service_1.ContentService.createSeriesToDB(payload);
     (0, sendResponse_1.default)(res, {
         success: true,
@@ -365,20 +376,6 @@ const createSeries = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 }));
 const updateSeries = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const payload = Object.assign({}, req.body);
-    // Handle files from fileUploadHandler
-    if (req.files) {
-        const files = req.files;
-        if (files['trailerFile'])
-            payload.trailerUrl =
-                files['trailerFile'][0].location || files['trailerFile'][0].path;
-        if (files['posterFile'])
-            payload.posterUrl =
-                files['posterFile'][0].location || files['posterFile'][0].path;
-        if (files['thumbnailFile'])
-            payload.thumbnailUrl =
-                files['thumbnailFile'][0].location ||
-                    files['thumbnailFile'][0].path;
-    }
     const result = yield content_service_1.ContentService.updateSeriesInDB(req.params.seriesId, payload);
     (0, sendResponse_1.default)(res, {
         success: true,
@@ -478,6 +475,24 @@ const completeUpload = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
         data: result,
     });
 }));
+const getEpisodesBySeasonPublic = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield content_service_1.ContentService.getEpisodesBySeasonPublicFromDB(req.params.seasonId);
+    (0, sendResponse_1.default)(res, {
+        success: true,
+        statusCode: http_status_1.default.OK,
+        message: 'Season episodes retrieved successfully',
+        data: result,
+    });
+}));
+const getSimilarContentPublic = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield content_service_1.ContentService.getSimilarContentFromDB(req.params.contentId);
+    (0, sendResponse_1.default)(res, {
+        success: true,
+        statusCode: http_status_1.default.OK,
+        message: 'Similar content retrieved successfully',
+        data: result,
+    });
+}));
 exports.ContentController = {
     searchContent,
     favoriteContent,
@@ -513,6 +528,10 @@ exports.ContentController = {
     getPresignedUrls: getPresignedUrls,
     completeUpload: completeUpload,
     getContentDetailsPublic: getContentDetailsPublic,
+    getSimilarContentPublic: getSimilarContentPublic,
+    getEpisodesBySeasonPublic: getEpisodesBySeasonPublic,
     getPlaybackUrl: getPlaybackUrl,
-    getEpisodePlaybackUrl: getEpisodePlaybackUrl
+    getEpisodePlaybackUrl: getEpisodePlaybackUrl,
+    unlockContent: unlockContent,
+    unlockEpisode: unlockEpisode
 };

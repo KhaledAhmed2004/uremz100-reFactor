@@ -55,8 +55,8 @@ const getWalletDetails = async (ownerQuery: Record<string, any>) => {
   let progress: any = null;
   if (progressDoc) {
     progress = {
-      ...progressDoc,
-      dailyWatchReward: progressDoc.dailyWatchReward || {
+      ...(progressDoc as any),
+      dailyWatchReward: (progressDoc as any).dailyWatchReward || {
         lastClaimDate: null,
         claimedDuration: 0,
       }
@@ -212,7 +212,7 @@ const claimDailyCheckIn = async (ownerQuery: Record<string, any>) => {
       };
     }
     if (!progress.checkInRewards) {
-      progress.checkInRewards = new Map();
+      progress.checkInRewards = {};
     }
 
     let lastClaimDateUTC: Date | null = null;
@@ -232,7 +232,7 @@ const claimDailyCheckIn = async (ownerQuery: Record<string, any>) => {
       if (daysMissed > 1) {
         currentDay = 1;
         progress.checkInStreak.isStreakActive = false;
-        progress.checkInRewards.clear();
+        progress.checkInRewards = {};
       }
     }
 
@@ -240,7 +240,7 @@ const claimDailyCheckIn = async (ownerQuery: Record<string, any>) => {
 
     await grantBonusCoins(session, ownerQuery, rewardCoins, TransactionSource.DAILY_CHECK_IN, `Day ${currentDay} Check-in`);
 
-    progress.checkInRewards.set(`day${currentDay}`, { claimed: true, claimedAt: today });
+    progress.checkInRewards[`day${currentDay}`] = { claimed: true, claimedAt: today };
     progress.checkInStreak.lastClaimDate = today;
     progress.checkInStreak.isStreakActive = true;
 
@@ -491,6 +491,71 @@ const claimProfileCompletionReward = async (ownerQuery: Record<string, any>) => 
   }
 };
 
+const deductCoinsForUnlock = async (userId: string, amount: number) => {
+  const session = await startSession();
+  session.startTransaction();
+  try {
+    // We pass { user: userId } as the ownerQuery.
+    const ownerQuery = { user: userId };
+    const { wallet } = await getOrCreateWalletAndProgress(ownerQuery, session);
+
+    const { bonusBalance, activeLedgers } = getActiveBonus(wallet.bonusLedger);
+
+    if (wallet.goldBalance + bonusBalance < amount) {
+      throw new ApiError(StatusCodes.PAYMENT_REQUIRED, 'Insufficient coin balance to unlock this content');
+    }
+
+    let amountToDeduct = amount;
+    
+    // Prioritize deducting from active bonus ledgers (sort by earliest expiration)
+    if (bonusBalance > 0 && amountToDeduct > 0) {
+      const sortedLedgers = activeLedgers.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
+      for (const ledger of sortedLedgers) {
+        if (amountToDeduct <= 0) break;
+        if (ledger.amount <= amountToDeduct) {
+          amountToDeduct -= ledger.amount;
+          ledger.amount = 0;
+        } else {
+          ledger.amount -= amountToDeduct;
+          amountToDeduct = 0;
+        }
+      }
+      // Re-assign back to wallet. Filter out ledgers with 0 amount to clean up.
+      wallet.bonusLedger = wallet.bonusLedger.filter(l => l.amount > 0) as any;
+    }
+
+    // If there's still an amount left, deduct from goldBalance
+    if (amountToDeduct > 0) {
+      wallet.goldBalance -= amountToDeduct;
+    }
+
+    await wallet.save({ session });
+
+    await Transaction.create(
+      [
+        {
+          wallet: wallet._id,
+          amount,
+          type: TransactionType.SPEND,
+          currencyType: CurrencyType.GOLD, // Or MIXED, but GOLD is fine as a generic spend
+          source: TransactionSource.SPEND_UNLOCK,
+          description: `Spent ${amount} coins to unlock content`,
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return { success: true, amountDeducted: amount };
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    throw error;
+  }
+};
+
 export const RewardService = {
   getWalletDetails,
   claimWatchTimeReward,
@@ -502,4 +567,5 @@ export const RewardService = {
   claimBindEmailReward,
   claimLoginReward,
   claimProfileCompletionReward,
+  deductCoinsForUnlock,
 };

@@ -32,8 +32,7 @@ async function createAuthUser(role: string = USER_ROLES.SUPER_ADMIN, nameSuffix 
     revertDate: new Date(),
     dateOfBirth: new Date('1990-01-01'),
     profileImage: '/default-avatar.svg',
-    verificationImage: 'https://example.com/img.jpg',
-    verificationVideo: 'https://example.com/vid.mp4',
+
     tokenVersion: 0,
   });
 
@@ -389,6 +388,7 @@ describe('Content E2E Tests', () => {
         seasonId: season._id.toString(),
         seasonNumber: 1,
         episodeNumber: 1,
+        requiredCoin: 50,
         availability: 'FREE'
       };
 
@@ -402,6 +402,7 @@ describe('Content E2E Tests', () => {
       expect(response.status).toBe(StatusCodes.CREATED);
       expect(response.body.success).toBe(true);
       expect(response.body.data.title).toBe('Episode 1');
+      expect(response.body.data.requiredCoin).toBe(50);
     });
 
     it('successfully fetches episodes (GET /api/v1/contents/series/:seriesId/episodes)', async () => {
@@ -489,7 +490,8 @@ describe('Content E2E Tests', () => {
       };
 
       vi.spyOn(ContentService, 'completeMultipartUpload').mockResolvedValueOnce({
-        location: 'http://bunnycdn.url/movies/test.mp4'
+        location: 'http://bunnycdn.url/movies/test.mp4',
+        key: 'movies/test.mp4'
       });
 
       const response = await request(app)

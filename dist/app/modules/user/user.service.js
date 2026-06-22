@@ -352,6 +352,7 @@ const getUserProfilesFromDB = (user, query) => __awaiter(void 0, void 0, void 0,
             _id: 1,
             name: 1,
             profileImage: 1,
+            revertDate: 1,
             age: {
                 $dateDiff: {
                     startDate: '$dateOfBirth',
@@ -489,10 +490,14 @@ const updateUserByAdminInDB = (id, payload) => __awaiter(void 0, void 0, void 0,
     // Whitelist fields admin can update (excluding password/auth info)
     if (payload.name !== undefined)
         user.name = payload.name;
+    if (payload.revertStory !== undefined)
+        user.revertStory = payload.revertStory;
     if (payload.email !== undefined)
         user.email = payload.email;
     if (payload.dateOfBirth !== undefined)
         user.dateOfBirth = payload.dateOfBirth;
+    if (payload.revertDate !== undefined)
+        user.revertDate = payload.revertDate;
     if (payload.location !== undefined) {
         user.location = payload.location;
     }
@@ -540,7 +545,7 @@ const updateUserByAdminInDB = (id, payload) => __awaiter(void 0, void 0, void 0,
     return plain;
 });
 const getUserDetailsByIdFromDB = (id, requester) => __awaiter(void 0, void 0, void 0, function* () {
-    const user = yield user_model_1.User.findById(id).select('_id name role profileImage location isVerified createdAt status deletedAt');
+    const user = yield user_model_1.User.findById(id).select('_id name role profileImage location isVerified revertDate revertStory createdAt status deletedAt');
     // 1. Check existence and visibility
     if (!user || user.status !== user_1.USER_STATUS.ACTIVE || user.deletedAt) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'User not found');
@@ -737,8 +742,7 @@ const confirmEmailChangeFromDB = (user, otp) => __awaiter(void 0, void 0, void 0
 // returned — it's a credential that would let a third party hijack
 // push delivery.
 // Public flow: a REJECTED user submits the token they received by email
-// after the admin flipped them, along with a fresh verificationImage +
-// verificationVideo. We validate the token, swap in the new files (and
+// after the admin flipped them. We validate the token, swap in the new profileImage,
 // optionally a new profileImage), unlink the old verification artifacts,
 // reset status to PENDING so the admin queue picks the user up again,
 // and clear the one-time token. The user still cannot log in until an
@@ -767,6 +771,7 @@ const reverifyAccountFromDB = (payload) => __awaiter(void 0, void 0, void 0, fun
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.BAD_REQUEST, 'Invalid or expired re-verification token');
     }
     // Unlink the old verification files before overwriting. Best-effort —
+    // an unlink failure on a missing file shouldn't block re-verification.
     if (profileImage && dbUser.profileImage)
         (0, unlinkFile_1.default)(dbUser.profileImage);
     const update = {

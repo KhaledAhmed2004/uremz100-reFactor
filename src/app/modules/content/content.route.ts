@@ -65,6 +65,18 @@ router.get(
   ContentController.getEpisodePlaybackUrl,
 );
 
+router.post(
+  '/:contentId/unlock',
+  auth(USER_ROLES.USER),
+  ContentController.unlockContent,
+);
+
+router.post(
+  '/episodes/:episodeId/unlock',
+  auth(USER_ROLES.USER),
+  ContentController.unlockEpisode,
+);
+
 // Movies Management
 router.get(
   '/movies/stats',
@@ -218,6 +230,29 @@ router.delete(
 router.get(
   '/series/:seriesId/episodes',
   ContentController.getEpisodes,
+);
+
+router.get(
+  '/series/episodes/:episodeId',
+  ContentController.getEpisodeDetails,
+);
+
+router.get(
+  '/series/episodes/:episodeId/analytics/overview',
+  auth(USER_ROLES.SUPER_ADMIN),
+  ContentController.getEpisodeAnalyticsOverview,
+);
+
+router.get(
+  '/series/episodes/:episodeId/analytics/audience',
+  auth(USER_ROLES.SUPER_ADMIN),
+  ContentController.getEpisodeAnalyticsAudience,
+);
+
+router.get(
+  '/series/episodes/:episodeId/analytics/engagement',
+  auth(USER_ROLES.SUPER_ADMIN),
+  ContentController.getEpisodeAnalyticsEngagement,
 );
 
 router.post(

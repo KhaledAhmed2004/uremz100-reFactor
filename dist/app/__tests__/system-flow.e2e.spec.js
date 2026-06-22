@@ -55,6 +55,8 @@ let testUserId;
 let testUserEmail;
 let TEST_PASSWORD = 'TestPassword123!';
 let theMovieId;
+let theSeriesId;
+let theSeasonId;
 let shortsCursor;
 let myCollectionId;
 let selectedShortId;
@@ -77,14 +79,19 @@ let selectedShortId;
     yield UserRewardProgress.create({ user: user._id });
     userToken = jwtHelper_1.jwtHelper.createToken({ id: user._id, role: user.role, tokenVersion: user.tokenVersion || 0 }, config_1.default.jwt.jwt_secret, '1d');
     // 2. Create some Content
+    const { Genre } = yield Promise.resolve().then(() => __importStar(require('../modules/genre/genre.model')));
+    const actionGenre = yield Genre.create({ name: 'Action' });
+    const scifiGenre = yield Genre.create({ name: 'Sci-Fi' });
     const movie1 = yield content_model_1.Content.create({
         title: 'Batman The Dark Knight',
         description: 'A great movie',
         type: 'MOVIE',
         status: 'PUBLISHED',
         planStatus: ['FREE'],
+        genres: [actionGenre._id],
         videoUrl: 'http://video.com/batman.mp4',
         posterUrl: 'http://image.com/batman.jpg',
+        trailerUrl: 'http://trailer.com/batman.mp4',
         duration: 120,
         releaseYear: 2008,
         publishedAt: new Date(),
@@ -99,6 +106,7 @@ let selectedShortId;
         type: 'MOVIE',
         status: 'PUBLISHED',
         planStatus: ['MONTHLY'],
+        genres: [actionGenre._id],
         trailerUrl: 'http://trailer.com/superman.mp4',
         videoUrl: 'http://video.com/superman.mp4',
         posterUrl: 'http://image.com/superman.jpg',
@@ -109,6 +117,46 @@ let selectedShortId;
         engagementScore: 80,
         trendingScore: 80,
     });
+    const series1 = yield content_model_1.Content.create({
+        title: 'The Great Series',
+        description: 'A great series',
+        type: 'SERIES',
+        status: 'PUBLISHED',
+        planStatus: ['FREE'],
+        genres: [actionGenre._id, scifiGenre._id],
+        posterUrl: 'http://image.com/series.jpg',
+        duration: 0,
+        releaseYear: 2024,
+        publishedAt: new Date(),
+        views: 1500,
+        engagementScore: 120,
+        trendingScore: 120,
+    });
+    theSeriesId = series1._id.toString();
+    const { Season } = yield Promise.resolve().then(() => __importStar(require('../modules/content/season.model')));
+    const { Episode } = yield Promise.resolve().then(() => __importStar(require('../modules/content/episode.model')));
+    const season1 = yield Season.create({
+        seriesId: theSeriesId,
+        title: 'Season 1',
+        seasonNumber: 1,
+        posterUrl: 'http://image.com/season1.jpg',
+    });
+    for (let i = 1; i <= 5; i++) {
+        yield Episode.create({
+            seriesId: series1._id,
+            seasonId: season1._id,
+            title: `Episode ${i}`,
+            description: `This is the great episode number ${i}`,
+            episodeNumber: i,
+            seasonNumber: 1,
+            videoUrl: `http://video.com/ep${i}.mp4`,
+            thumbnailUrl: `http://image.com/ep${i}.jpg`,
+            releaseDate: new Date(),
+            duration: 45 + i,
+            status: 'PUBLISHED',
+            planStatus: i === 1 ? 'FREE' : 'MONTHLY',
+        });
+    }
     // Create 10 more movies to trigger cursor pagination for limit=10
     for (let i = 0; i < 10; i++) {
         yield content_model_1.Content.create({
@@ -117,6 +165,7 @@ let selectedShortId;
             type: i % 2 === 0 ? 'MOVIE' : 'SERIES',
             status: 'PUBLISHED',
             planStatus: ['FREE'],
+            genres: [actionGenre._id],
             videoUrl: 'http://video.com/extra.mp4',
             posterUrl: 'http://image.com/extra.jpg',
             duration: 120,
@@ -718,27 +767,101 @@ Feature: Content Discovery
         }));
     });
     (0, vitest_1.describe)('2. Content Details Flow', () => {
-        (0, vitest_1.it)('should fetch the full details of the selected movie', () => __awaiter(void 0, void 0, void 0, function* () {
+        (0, vitest_1.it)('should fetch the full details of the selected movie and series', () => __awaiter(void 0, void 0, void 0, function* () {
             console.info(`
 📖 BDD SCENARIO: 07. FETCH CONTENT DETAILS
 Feature: Content Discovery
-  As a user who just clicked on a movie poster
-  I want to see the full details of the movie
-  So that I can read the description, see the cast, and decide to watch it
+  As a user who just clicked on a movie or series poster
+  I want to see the full details of the content
+  So that I can read the description and decide to watch it
 
-  Given the user clicks on a movie from the Home feed
-  When the mobile app requests the public content details for that movie ID
-  Then the backend returns the full metadata including title, description, and cast
-  And the UI displays the Movie Details screen
+  Given the user clicks on a movie or series from the Home feed
+  When the mobile app requests the public content details
+  Then the backend returns the full metadata (and seasons if it's a series)
+  And the UI displays the details screen
 `);
-            const res = yield (0, supertest_1.default)(app_1.default)
+            // Fetch Movie
+            const movieRes = yield (0, supertest_1.default)(app_1.default)
                 .get(`/api/v1/contents/${theMovieId}/details`)
                 .set('Authorization', `Bearer ${userToken}`);
-            (0, testLogger_1.logApi)('GET', `/api/v1/contents/${theMovieId}/details`, { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'GET-CONTENT-DETAILS', 'User fetches content details to view movie page');
+            (0, testLogger_1.logApi)('GET', `/api/v1/contents/${theMovieId}/details`, { headers: { Authorization: `Bearer ${userToken}` } }, movieRes.body, 'GET-CONTENT-DETAILS', 'User fetches content details to view movie page');
+            (0, vitest_1.expect)(movieRes.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(movieRes.body.success).toBe(true);
+            (0, vitest_1.expect)(movieRes.body.data.title).toBeDefined();
+            (0, vitest_1.expect)(movieRes.body.data.videoUrl).toBeDefined(); // videoUrl exposed as requested
+            (0, vitest_1.expect)(movieRes.body.data.trailerUrl).toBeDefined();
+            // Fetch Series
+            const seriesRes = yield (0, supertest_1.default)(app_1.default)
+                .get(`/api/v1/contents/${theSeriesId}/details`)
+                .set('Authorization', `Bearer ${userToken}`);
+            (0, testLogger_1.logApi)('GET', `/api/v1/contents/${theSeriesId}/details`, { headers: { Authorization: `Bearer ${userToken}` } }, seriesRes.body, 'GET-SERIES-DETAILS', 'User fetches content details to view series page');
+            (0, vitest_1.expect)(seriesRes.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(seriesRes.body.success).toBe(true);
+            (0, vitest_1.expect)(seriesRes.body.data.title).toBeDefined();
+            (0, vitest_1.expect)(seriesRes.body.data.type).toBe('SERIES');
+            (0, vitest_1.expect)(seriesRes.body.data.totalEpisodes).toBeDefined();
+            (0, vitest_1.expect)(seriesRes.body.data.seasons).toBeDefined();
+            (0, vitest_1.expect)(Array.isArray(seriesRes.body.data.seasons)).toBe(true);
+            (0, vitest_1.expect)(seriesRes.body.data.videoUrl).toBeUndefined(); // videoUrl should be hidden
+            // Store season ID to fetch its episodes
+            if (seriesRes.body.data.seasons.length > 0) {
+                theSeasonId = seriesRes.body.data.seasons[0].id;
+            }
+        }));
+        (0, vitest_1.it)('should fetch the episodes for a selected season', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: 07.3 FETCH SEASON EPISODES
+Feature: Content Discovery
+  As a user who just expanded a season dropdown
+  I want to see the list of episodes for that season
+  So that I can select an episode to watch
+
+  Given the user expands a season in the Series Details screen
+  When the app requests the episodes for that specific season ID
+  Then the backend returns the ordered list of episodes for the season
+`);
+            if (!theSeasonId) {
+                const { Season } = yield Promise.resolve().then(() => __importStar(require('../modules/content/season.model')));
+                const season = yield Season.findOne({ seriesId: theSeriesId });
+                if (!season) {
+                    throw new Error('Season ID not found and no season exists for the series');
+                }
+                theSeasonId = season._id.toString();
+            }
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .get(`/api/v1/contents/seasons/${theSeasonId}/episodes`)
+                .set('Authorization', `Bearer ${userToken}`);
+            (0, testLogger_1.logApi)('GET', `/api/v1/contents/seasons/${theSeasonId}/episodes`, { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'GET-SEASON-EPISODES', 'User fetches the list of episodes for a specific season');
             (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
             (0, vitest_1.expect)(res.body.success).toBe(true);
-            (0, vitest_1.expect)(res.body.data.title).toBeDefined();
-            (0, vitest_1.expect)(res.body.data.videoUrl).toBeUndefined(); // videoUrl should be hidden
+            (0, vitest_1.expect)(res.body.data).toBeDefined();
+            (0, vitest_1.expect)(Array.isArray(res.body.data)).toBe(true);
+            if (res.body.data.length > 0) {
+                (0, vitest_1.expect)(res.body.data[0].title).toBeDefined();
+                (0, vitest_1.expect)(res.body.data[0].episodeNumber).toBeDefined();
+                (0, vitest_1.expect)(res.body.data[0].videoUrl).toBeDefined(); // Exposed per user request
+            }
+        }));
+        (0, vitest_1.it)('should fetch similar content for a selected movie', () => __awaiter(void 0, void 0, void 0, function* () {
+            console.info(`
+📖 BDD SCENARIO: 07.4 FETCH SIMILAR CONTENT (MORE LIKE THIS)
+Feature: Content Discovery
+  As a user who is viewing a movie
+  I want to see a list of similar content
+  So that I can easily find something else to watch next
+
+  Given the user scrolls down to the "More Like This" section
+  When the app requests similar content based on the current movie's genres
+  Then the backend returns an array of related movies/series
+`);
+            const res = yield (0, supertest_1.default)(app_1.default)
+                .get(`/api/v1/contents/${theMovieId}/similar`)
+                .set('Authorization', `Bearer ${userToken}`);
+            (0, testLogger_1.logApi)('GET', `/api/v1/contents/${theMovieId}/similar`, { headers: { Authorization: `Bearer ${userToken}` } }, res.body, 'GET-SIMILAR-CONTENT', 'User fetches "More Like This" content based on current movie');
+            (0, vitest_1.expect)(res.status).toBe(http_status_codes_1.StatusCodes.OK);
+            (0, vitest_1.expect)(res.body.success).toBe(true);
+            (0, vitest_1.expect)(res.body.data).toBeDefined();
+            (0, vitest_1.expect)(Array.isArray(res.body.data)).toBe(true);
         }));
         (0, vitest_1.it)('should fetch the secure playback URL for the selected movie', () => __awaiter(void 0, void 0, void 0, function* () {
             console.info(`

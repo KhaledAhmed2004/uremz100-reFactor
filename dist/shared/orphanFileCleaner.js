@@ -26,8 +26,7 @@ exports.OrphanFileCleaner = void 0;
  * Sweeps `uploads/users/{profiles,verifications,videos}` daily and
  * removes any file that:
  *   1. is older than 24 h (grace period for in-flight uploads), AND
- *   2. is not referenced by any User document's
- *      `profileImage`, `verificationImage`, or `verificationVideo`.
+ *      `profileImage`.
  *
  * Why: every profile-image / verification swap is supposed to unlink
  * the previous file. `unlinkFile` retries best-effort, but transient
@@ -171,16 +170,15 @@ class OrphanFileCleaner {
         });
     }
     /**
-     * Collect the set of absolute file paths currently referenced by
-     * any User document across `profileImage`, `verificationImage`,
-     * `verificationVideo`. Skips external URLs and the system default.
+     * any User document across `profileImage`.
+     * Skips external URLs and the system default.
      */
     static collectReferencedFiles() {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, e_1, _b, _c;
             const referenced = new Set();
             const cursor = user_model_1.User.find({})
-                .select('profileImage verificationImage verificationVideo')
+                .select('profileImage')
                 .lean()
                 .cursor();
             try {
@@ -190,8 +188,6 @@ class OrphanFileCleaner {
                     const doc = _c;
                     for (const value of [
                         doc.profileImage,
-                        doc.verificationImage,
-                        doc.verificationVideo,
                     ]) {
                         const absolute = this.storedToAbsolute(value);
                         if (absolute)

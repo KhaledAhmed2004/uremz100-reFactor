@@ -12,19 +12,22 @@ const validateRequest_1 = __importDefault(require("../../middlewares/validateReq
 const support_ticket_controller_1 = require("./support-ticket.controller");
 const support_ticket_validation_1 = require("./support-ticket.validation");
 const router = express_1.default.Router();
-const ATTACHMENT_FIELDS = [{ name: 'attachments', maxCount: 5 }];
-const FILE_OPTS = { maxFileSizeMB: 25 };
+const FILE_OPTS = {
+    maxFileSizeMB: 25,
+    enforceAllowedFields: ['attachments'],
+    perFieldMaxCount: { attachments: 5 }
+};
 router.get('/admin/list', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), support_ticket_controller_1.SupportTicketController.getAllTickets);
 router.get('/admin/stats', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), support_ticket_controller_1.SupportTicketController.getTicketStats);
 router.patch('/admin/:ticketId/status', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(support_ticket_validation_1.SupportTicketValidation.updateStatusZodSchema), support_ticket_controller_1.SupportTicketController.updateTicketStatus);
 router.patch('/admin/:ticketId/priority', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(support_ticket_validation_1.SupportTicketValidation.updatePriorityZodSchema), support_ticket_controller_1.SupportTicketController.updateTicketPriority);
 router.patch('/admin/:ticketId/assign', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), (0, validateRequest_1.default)(support_ticket_validation_1.SupportTicketValidation.assignTicketZodSchema), support_ticket_controller_1.SupportTicketController.assignTicket);
 // Create a new ticket (with optional attachments)
-router.post('/', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), (0, fileHandler_1.fileHandler)([{ name: 'attachments', maxCount: 5 }]), (0, validateRequest_1.default)(support_ticket_validation_1.SupportTicketValidation.createTicketZodSchema), support_ticket_controller_1.SupportTicketController.createTicket);
+router.post('/', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), (0, fileHandler_1.fileHandler)(FILE_OPTS), (0, validateRequest_1.default)(support_ticket_validation_1.SupportTicketValidation.createTicketZodSchema), support_ticket_controller_1.SupportTicketController.createTicket);
 // List my tickets (BROTHER/SISTER only — admins use /admin/list)
 router.get('/my', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), support_ticket_controller_1.SupportTicketController.getMyTickets);
 // Reply to a ticket (any participant — ownership / admin checked in service)
-router.post('/:ticketId/reply', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), (0, fileHandler_1.fileHandler)([{ name: 'attachments', maxCount: 5 }]), (0, validateRequest_1.default)(support_ticket_validation_1.SupportTicketValidation.replyTicketZodSchema), support_ticket_controller_1.SupportTicketController.replyToTicket);
+router.post('/:ticketId/reply', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), (0, fileHandler_1.fileHandler)(FILE_OPTS), (0, validateRequest_1.default)(support_ticket_validation_1.SupportTicketValidation.replyTicketZodSchema), support_ticket_controller_1.SupportTicketController.replyToTicket);
 // Paginated message list for a single ticket
 router.get('/:ticketId/messages', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER), (0, validateRequest_1.default)(support_ticket_validation_1.SupportTicketValidation.ticketIdParamSchema), support_ticket_controller_1.SupportTicketController.getTicketMessages);
 // Single ticket detail (no messages — paginated separately)

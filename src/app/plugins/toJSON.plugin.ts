@@ -12,15 +12,15 @@ export const toJSONPlugin = (schema: Schema) => {
       // 1. Convert _id to id safely
       if (ret._id) {
         ret.id = ret._id;
-        delete ret._id;
+        delete (ret as any)._id;
       }
       
       // 2. Always remove Mongoose version key
-      delete ret.__v;
+      delete (ret as any).__v;
       
       // 3. Globally strip password from any response
       if (ret.password) {
-        delete ret.password;
+        delete (ret as any).password;
       }
       
       return ret;

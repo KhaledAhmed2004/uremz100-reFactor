@@ -70,7 +70,7 @@ const getMyCollection = catchAsync(async (req: Request, res: Response) => {
     statusCode: httpStatus.OK,
     success: true,
     message: 'My collection retrieved successfully',
-    meta: result.pagination,
+    meta: result.pagination || undefined,
     data: result.data,
   });
 });

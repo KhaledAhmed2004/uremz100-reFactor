@@ -5,6 +5,7 @@ const mongoose_1 = require("mongoose");
 const seasonSchema = new mongoose_1.Schema({
     title: { type: String, required: true, trim: true },
     posterUrl: { type: String, required: true },
+    trailerUrl: { type: String },
     seriesId: { type: mongoose_1.Schema.Types.ObjectId, ref: 'Content', required: true },
     seasonNumber: { type: Number, required: true },
 }, {

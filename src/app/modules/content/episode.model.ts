@@ -13,6 +13,7 @@ export interface IEpisode {
   seasonId: Types.ObjectId; // Linked to the Season model
   seasonNumber: number; // For easy sorting and display
   episodeNumber: number;
+  requiredCoin: number;
 }
 
 export type EpisodeModel = Model<IEpisode, Record<string, unknown>>;
@@ -39,6 +40,7 @@ const episodeSchema = new Schema<IEpisode>(
     seasonId: { type: Schema.Types.ObjectId, ref: 'Season', required: true },
     seasonNumber: { type: Number, required: true },
     episodeNumber: { type: Number, required: true },
+    requiredCoin: { type: Number, default: 0 },
   },
   {
     timestamps: true,

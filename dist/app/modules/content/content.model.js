@@ -47,6 +47,7 @@ const contentSchema = new mongoose_1.Schema({
     },
     seasonsCount: { type: Number, default: 0 },
     totalEpisodes: { type: Number, default: 0 },
+    requiredCoin: { type: Number, default: 0 },
 }, {
     timestamps: true,
     toJSON: { virtuals: true },

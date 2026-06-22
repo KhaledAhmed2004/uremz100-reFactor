@@ -37,6 +37,9 @@ const favorite_content_model_1 = require("../favorite-content/favorite-content.m
 const episode_model_1 = require("./episode.model");
 const season_model_1 = require("./season.model");
 const subscription_model_1 = require("../subscription/subscription.model");
+const unlocked_content_model_1 = require("./unlocked-content.model");
+const unlocked_episode_model_1 = require("./unlocked-episode.model");
+const reward_service_1 = require("../reward/reward.service");
 const s3 = new client_s3_1.S3Client({
     region: 'auto',
     credentials: {
@@ -68,6 +71,30 @@ const searchContentFromDB = (query) => __awaiter(void 0, void 0, void 0, functio
         pagination,
         data: result,
     };
+});
+const unlockEpisodeInDB = (userId, episodeId) => __awaiter(void 0, void 0, void 0, function* () {
+    const episode = yield episode_model_1.Episode.findById(episodeId);
+    if (!episode) {
+        throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Episode not found');
+    }
+    if (!episode.requiredCoin || episode.requiredCoin <= 0) {
+        throw new ApiError_1.default(http_status_1.default.BAD_REQUEST, 'This episode does not require coins to unlock');
+    }
+    const alreadyUnlocked = yield unlocked_episode_model_1.UnlockedEpisode.findOne({
+        userId: new mongoose_1.Types.ObjectId(userId),
+        episodeId: new mongoose_1.Types.ObjectId(episodeId)
+    });
+    if (alreadyUnlocked) {
+        throw new ApiError_1.default(http_status_1.default.BAD_REQUEST, 'Episode is already unlocked');
+    }
+    // Deduct coins
+    yield reward_service_1.RewardService.deductCoinsForUnlock(userId, episode.requiredCoin);
+    // Record unlock
+    yield unlocked_episode_model_1.UnlockedEpisode.create({
+        userId: new mongoose_1.Types.ObjectId(userId),
+        episodeId: new mongoose_1.Types.ObjectId(episodeId)
+    });
+    return { success: true, message: 'Episode unlocked successfully' };
 });
 const favoriteContentInDB = (userId, contentId) => __awaiter(void 0, void 0, void 0, function* () {
     const isContentExist = yield content_model_1.Content.findById(contentId);
@@ -118,9 +145,11 @@ const getAdminMoviesList = (query) => __awaiter(void 0, void 0, void 0, function
         _id: item._id,
         title: item.title,
         posterUrl: item.posterUrl,
+        poster: item.posterUrl,
         duration: `${Math.floor(item.duration / 60)}h ${item.duration % 60}m`,
         status: item.status,
         planStatus: item.planStatus,
+        requiredCoin: item.requiredCoin,
     }));
     return {
         pagination: paginationInfo,
@@ -136,14 +165,23 @@ const getAdminSeriesList = (query) => __awaiter(void 0, void 0, void 0, function
         .fields();
     const series = yield seriesQuery.modelQuery;
     const paginationInfo = yield seriesQuery.getPaginationInfo();
-    const data = series.map((item) => ({
-        _id: item._id,
-        title: item.title,
-        posterUrl: item.posterUrl,
-        seasonsCount: item.seasonsCount || 0,
-        status: item.status,
-        subscriptionType: item.plan,
-    }));
+    const data = yield Promise.all(series.map((item) => __awaiter(void 0, void 0, void 0, function* () {
+        let posterUrl = null;
+        const latestSeason = yield season_model_1.Season.findOne({ seriesId: item._id }).sort('-seasonNumber').lean();
+        if (latestSeason) {
+            posterUrl = latestSeason.posterUrl;
+        }
+        return {
+            _id: item._id,
+            title: item.title,
+            posterUrl,
+            poster: posterUrl,
+            seasonsCount: item.seasonsCount || 0,
+            status: item.status,
+            planStatus: item.planStatus,
+            requiredCoin: item.requiredCoin,
+        };
+    })));
     return {
         pagination: paginationInfo,
         data,
@@ -169,27 +207,37 @@ const getSeriesDetailsFromDB = (id) => __awaiter(void 0, void 0, void 0, functio
         const episodeCount = yield episode_model_1.Episode.countDocuments({ seasonId: season._id });
         return Object.assign(Object.assign({}, season.toObject()), { episodeCount });
     })));
-    const newContent = series.toObject();
-    newContent.seasons = seasons;
-    return Object.assign(Object.assign({}, newContent), { totalEpisodes: totalEpisodes });
+    return Object.assign(Object.assign({}, series.toObject()), { totalEpisodes: totalEpisodes, seasons: seasons });
 });
 const getContentDetailsPublicFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
-    const content = yield content_model_1.Content.findById(id).select('-videoUrl -dailyViews -weeklyViews -totalWatchTime -engagementScore -trendingScore');
+    const content = yield content_model_1.Content.findById(id)
+        .populate('genres', 'name')
+        .select('-dailyViews -weeklyViews -totalWatchTime -engagementScore -trendingScore -__v -cast');
     if (!content || content.status !== 'PUBLISHED') {
         throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Content not found');
     }
     let result = content.toObject();
+    if (result.genres && Array.isArray(result.genres)) {
+        result.genres = result.genres.map((g) => g.name || g);
+    }
     if (content.type === 'SERIES') {
         const totalEpisodes = yield episode_model_1.Episode.countDocuments({ seriesId: id, status: 'PUBLISHED' });
         const seasonsRaw = yield season_model_1.Season.find({ seriesId: id }).sort('seasonNumber');
         const seasons = yield Promise.all(seasonsRaw.map((season) => __awaiter(void 0, void 0, void 0, function* () {
             const episodes = yield episode_model_1.Episode.find({ seasonId: season._id, status: 'PUBLISHED' })
-                .select('-videoUrl')
+                .select('-videoUrl -createdAt -updatedAt -__v')
                 .sort('episodeNumber');
-            return Object.assign(Object.assign({}, season.toObject()), { episodeCount: episodes.length, episodes: episodes });
+            const seasonObj = season.toObject();
+            delete seasonObj.createdAt;
+            delete seasonObj.updatedAt;
+            delete seasonObj.__v;
+            return Object.assign(Object.assign({}, seasonObj), { episodeCount: episodes.length });
         })));
-        result = Object.assign(Object.assign({}, result), { totalEpisodes,
-            seasons });
+        result = Object.assign(Object.assign({}, result), { totalEpisodes, seasonsCount: seasons.length, seasons });
+    }
+    else if (content.type === 'MOVIE') {
+        delete result.totalEpisodes;
+        delete result.seasonsCount;
     }
     return result;
 });
@@ -230,7 +278,7 @@ const _generateSignedUrlIfS3 = (rawUrl) => __awaiter(void 0, void 0, void 0, fun
     };
 });
 const _checkSubscription = (userId, planStatus) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     if (planStatus.includes('FREE'))
         return;
     if (!userId) {
@@ -244,18 +292,56 @@ const _checkSubscription = (userId, planStatus) => __awaiter(void 0, void 0, voi
         throw new ApiError_1.default(http_status_1.default.FORBIDDEN, 'Active subscription required to watch this content');
     }
     // Allow ALL or if the user's plan intersects with the content's required plans
-    if (!planStatus.includes('ALL') && !planStatus.includes(((_a = subscription.plan) === null || _a === void 0 ? void 0 : _a.toString()) || '')) { // Simplified check. Ideally we cross-reference plan IDs
+    if (!planStatus.includes('ALL') && !planStatus.includes(((_a = subscription.plan) === null || _a === void 0 ? void 0 : _a.toString()) || ((_b = subscription.planId) === null || _b === void 0 ? void 0 : _b.toString()))) { // Simplified check. Ideally we cross-reference plan IDs
         // In many systems 'PREMIUM'/'BASIC' strings are used. If subscription has a plan object, we'd check its type.
         // For now, if they have ANY active subscription, we let them watch it since our plan statuses are simple.
         // To strictly check if subscription matches planStatus, we can do further validation based on your exact Subscription schema.
     }
+});
+const getEpisodesBySeasonPublicFromDB = (seasonId) => __awaiter(void 0, void 0, void 0, function* () {
+    const episodes = yield episode_model_1.Episode.find({ seasonId, status: 'PUBLISHED' })
+        .select('-createdAt -updatedAt -__v')
+        .sort('episodeNumber');
+    return episodes;
+});
+const getSimilarContentFromDB = (contentId) => __awaiter(void 0, void 0, void 0, function* () {
+    const content = yield content_model_1.Content.findById(contentId).select('genres');
+    if (!content) {
+        throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Content not found');
+    }
+    const similarContents = yield content_model_1.Content.find({
+        _id: { $ne: content._id },
+        status: 'PUBLISHED',
+        genres: { $in: content.genres }
+    })
+        .select('-videoUrl -dailyViews -weeklyViews -totalWatchTime -engagementScore -trendingScore -__v -cast')
+        .sort({ engagementScore: -1, views: -1 })
+        .limit(10);
+    return similarContents;
 });
 const generatePlaybackUrl = (contentId, userId, guestId) => __awaiter(void 0, void 0, void 0, function* () {
     const content = yield content_model_1.Content.findById(contentId);
     if (!content || content.status !== 'PUBLISHED') {
         throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Content not found');
     }
-    yield _checkSubscription(userId, content.planStatus);
+    try {
+        yield _checkSubscription(userId, content.planStatus);
+    }
+    catch (err) {
+        // If user is not subscribed, check if they unlocked it
+        if (userId && content.requiredCoin && content.requiredCoin > 0) {
+            const isUnlocked = yield unlocked_content_model_1.UnlockedContent.findOne({
+                userId: new mongoose_1.Types.ObjectId(userId),
+                contentId: new mongoose_1.Types.ObjectId(contentId)
+            });
+            if (!isUnlocked) {
+                throw new ApiError_1.default(http_status_1.default.FORBIDDEN, 'You need to unlock this content or subscribe to watch it');
+            }
+        }
+        else {
+            throw err;
+        }
+    }
     const { url, expiresAt } = yield _generateSignedUrlIfS3(content.videoUrl);
     return {
         contentId,
@@ -268,7 +354,24 @@ const generateEpisodePlaybackUrl = (episodeId, userId, guestId) => __awaiter(voi
     if (!episode || episode.status !== 'PUBLISHED') {
         throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Episode not found');
     }
-    yield _checkSubscription(userId, [episode.planStatus]);
+    try {
+        yield _checkSubscription(userId, [episode.planStatus]);
+    }
+    catch (err) {
+        let unlocked = false;
+        if (userId && episode.requiredCoin && episode.requiredCoin > 0) {
+            const isUnlocked = yield unlocked_episode_model_1.UnlockedEpisode.findOne({
+                userId: new mongoose_1.Types.ObjectId(userId),
+                episodeId: episode._id
+            });
+            if (isUnlocked) {
+                unlocked = true;
+            }
+        }
+        if (!unlocked) {
+            throw err;
+        }
+    }
     const { url, expiresAt } = yield _generateSignedUrlIfS3(episode.videoUrl);
     return {
         episodeId,
@@ -300,6 +403,8 @@ const getEpisodesFromDB = (seriesId, query) => __awaiter(void 0, void 0, void 0,
         data: episodes.map((ep) => ({
             _id: ep._id,
             title: ep.title,
+            description: ep.description,
+            thumbnailUrl: ep.thumbnailUrl,
             duration: `${ep.duration} min`,
             releaseDate: ep.releaseDate,
             status: ep.status,
@@ -327,7 +432,7 @@ const createEpisodeToDB = (seriesId, payload) => __awaiter(void 0, void 0, void 
             payload.seasonNumber = season.seasonNumber;
         }
     }
-    const episodeData = Object.assign(Object.assign({}, payload), { seriesId: new mongoose_1.Types.ObjectId(seriesId), seasonId: payload.seasonId ? new mongoose_1.Types.ObjectId(payload.seasonId) : undefined, duration: payload.duration ? Number(payload.duration) : 0, seasonNumber: payload.seasonNumber ? Number(payload.seasonNumber) : 1, episodeNumber: payload.episodeNumber ? Number(payload.episodeNumber) : 1, releaseDate: payload.releaseDate ? new Date(payload.releaseDate) : new Date(), planStatus: payload.availability || 'FREE', status: payload.isDraft === 'true' || payload.isDraft === true ? 'DRAFT' : 'PUBLISHED' });
+    const episodeData = Object.assign(Object.assign({}, payload), { seriesId: new mongoose_1.Types.ObjectId(seriesId), seasonId: payload.seasonId ? new mongoose_1.Types.ObjectId(payload.seasonId) : undefined, duration: payload.duration ? Number(payload.duration) : 0, seasonNumber: payload.seasonNumber ? Number(payload.seasonNumber) : 1, episodeNumber: payload.episodeNumber ? Number(payload.episodeNumber) : 1, requiredCoin: payload.requiredCoin ? Number(payload.requiredCoin) : 0, releaseDate: payload.releaseDate ? new Date(payload.releaseDate) : new Date(), planStatus: payload.availability || 'FREE', status: payload.isDraft === 'true' || payload.isDraft === true ? 'DRAFT' : 'PUBLISHED' });
     const result = yield episode_model_1.Episode.create(episodeData);
     // Update series aggregate counts
     const totalEpisodes = yield episode_model_1.Episode.countDocuments({ seriesId });
@@ -348,6 +453,8 @@ const updateEpisodeInDB = (id, payload) => __awaiter(void 0, void 0, void 0, fun
         updateData.duration = Number(payload.duration);
     if (payload.seasonNumber)
         updateData.seasonNumber = Number(payload.seasonNumber);
+    if (payload.requiredCoin !== undefined)
+        updateData.requiredCoin = Number(payload.requiredCoin);
     if (payload.releaseDate)
         updateData.releaseDate = new Date(payload.releaseDate);
     if (payload.availability)
@@ -391,8 +498,8 @@ const deleteEpisodeFromDB = (id) => __awaiter(void 0, void 0, void 0, function* 
     return result;
 });
 const createMovieToDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, thumbnail } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "cast", "duration", "releaseYear", "rating", "views", "isPremium", "releaseDate", "isPopularSeries", "thumbnail"]);
-    const movieData = Object.assign(Object.assign({}, rest), { genres: Array.isArray(genres) ? genres : (genres ? [genres] : []), cast: Array.isArray(cast) ? cast : (cast ? [cast] : []), duration: duration ? Number(duration) : 0, releaseYear: releaseYear ? Number(releaseYear) : new Date().getFullYear(), rating: rating ? Number(rating) : 0, views: views ? Number(views) : 0, isPopularSeries: isPopularSeries === 'true' || isPopularSeries === true, planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']), status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED', publishedAt: isDraft === 'true' || isDraft === true ? undefined : new Date(), type: 'MOVIE' });
+    const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, thumbnail, requiredCoin } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "cast", "duration", "releaseYear", "rating", "views", "isPremium", "releaseDate", "isPopularSeries", "thumbnail", "requiredCoin"]);
+    const movieData = Object.assign(Object.assign({}, rest), { genres: Array.isArray(genres) ? genres : (genres ? [genres] : []), cast: Array.isArray(cast) ? cast : (cast ? [cast] : []), duration: duration ? Number(duration) : 0, releaseYear: releaseYear ? Number(releaseYear) : new Date().getFullYear(), rating: rating ? Number(rating) : 0, views: views ? Number(views) : 0, isPopularSeries: isPopularSeries === 'true' || isPopularSeries === true, planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']), status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED', publishedAt: isDraft === 'true' || isDraft === true ? undefined : new Date(), type: 'MOVIE', requiredCoin: requiredCoin ? Number(requiredCoin) : 0 });
     if (isPremium !== undefined)
         movieData.isPremium = isPremium === 'true' || isPremium === true;
     if (releaseDate !== undefined)
@@ -452,7 +559,7 @@ const updateSeriesStatusInDB = (id, status) => __awaiter(void 0, void 0, void 0,
     return result;
 });
 const updateMovieInDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "cast", "duration", "releaseYear", "rating", "views", "isPremium", "releaseDate", "isPopularSeries"]);
+    const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, requiredCoin } = payload, rest = __rest(payload, ["isDraft", "availability", "genres", "cast", "duration", "releaseYear", "rating", "views", "isPremium", "releaseDate", "isPopularSeries", "requiredCoin"]);
     const updateData = Object.assign({}, rest);
     if (genres)
         updateData.genres = Array.isArray(genres) ? genres : [genres];
@@ -472,6 +579,8 @@ const updateMovieInDB = (id, payload) => __awaiter(void 0, void 0, void 0, funct
         updateData.releaseDate = new Date(releaseDate);
     if (isPopularSeries !== undefined)
         updateData.isPopularSeries = isPopularSeries === 'true' || isPopularSeries === true;
+    if (requiredCoin !== undefined)
+        updateData.requiredCoin = Number(requiredCoin);
     if (availability)
         updateData.planStatus = Array.isArray(availability) ? availability : [availability];
     if (isDraft !== undefined) {
@@ -775,6 +884,28 @@ const getSeriesStats = () => __awaiter(void 0, void 0, void 0, function* () {
         totalViews: formatMetric(viewsGrowth),
     };
 });
+const unlockContentInDB = (userId, contentId) => __awaiter(void 0, void 0, void 0, function* () {
+    const content = yield content_model_1.Content.findById(contentId);
+    if (!content) {
+        throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Content not found');
+    }
+    if (!content.requiredCoin || content.requiredCoin <= 0) {
+        throw new ApiError_1.default(http_status_1.default.BAD_REQUEST, 'This content cannot be unlocked with coins');
+    }
+    const alreadyUnlocked = yield unlocked_content_model_1.UnlockedContent.findOne({
+        userId: new mongoose_1.Types.ObjectId(userId),
+        contentId: new mongoose_1.Types.ObjectId(contentId),
+    });
+    if (alreadyUnlocked) {
+        throw new ApiError_1.default(http_status_1.default.BAD_REQUEST, 'You have already unlocked this content');
+    }
+    yield reward_service_1.RewardService.deductCoinsForUnlock(userId, content.requiredCoin);
+    const unlocked = yield unlocked_content_model_1.UnlockedContent.create({
+        userId: new mongoose_1.Types.ObjectId(userId),
+        contentId: new mongoose_1.Types.ObjectId(contentId),
+    });
+    return unlocked;
+});
 exports.ContentService = {
     searchContentFromDB,
     favoriteContentInDB,
@@ -807,6 +938,10 @@ exports.ContentService = {
     updateSeasonInDB: updateSeasonInDB,
     deleteSeasonFromDB: deleteSeasonFromDB,
     getContentDetailsPublicFromDB: getContentDetailsPublicFromDB,
+    getSimilarContentFromDB: getSimilarContentFromDB,
+    getEpisodesBySeasonPublicFromDB: getEpisodesBySeasonPublicFromDB,
     generatePlaybackUrl: generatePlaybackUrl,
-    generateEpisodePlaybackUrl: generateEpisodePlaybackUrl
+    generateEpisodePlaybackUrl: generateEpisodePlaybackUrl,
+    unlockContentInDB: unlockContentInDB,
+    unlockEpisodeInDB: unlockEpisodeInDB
 };

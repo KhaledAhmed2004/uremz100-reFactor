@@ -11,7 +11,7 @@ const getDashboardStats = catchAsync(async (req: Request, res: Response) => {
   const result = await AdminService.getAdminDashboardStats(
     range as string,
     startDate as string,
-    endDate as string
+    endDate as string,
   );
   sendResponse(res, {
     success: true,
@@ -27,7 +27,7 @@ const getVisitorAnalytics = catchAsync(async (req: Request, res: Response) => {
     range as string,
     tz as string,
     startDate as string,
-    endDate as string
+    endDate as string,
   );
   sendResponse(res, {
     success: true,
@@ -42,7 +42,7 @@ const getWatchlistStatus = catchAsync(async (req: Request, res: Response) => {
   const result = await AdminService.getWatchlistStatusBreakdown(
     (period || range) as string,
     startDate as string,
-    endDate as string
+    endDate as string,
   );
   sendResponse(res, {
     success: true,
@@ -52,27 +52,30 @@ const getWatchlistStatus = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getSubscriptionsStats = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await AdminService.getSubscriptionsStats();
+    sendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Subscription stats retrieved successfully',
+      data: result,
+    });
+  },
+);
 
-const getSubscriptionsStats = catchAsync(async (req: Request, res: Response) => {
-  const result = await AdminService.getSubscriptionsStats();
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: 'Subscription stats retrieved successfully',
-    data: result,
-  });
-});
-// --- Season Management ---
-const getAdminSubscriptions = catchAsync(async (req: Request, res: Response) => {
-  const result = await AdminService.getAdminSubscriptionsList(req.query);
-  sendResponse(res, {
-    success: true,
-    statusCode: StatusCodes.OK,
-    message: 'Subscriptions list fetched',
-    meta: result.pagination,
-    data: result.data,
-  });
-});
+const getAdminSubscriptions = catchAsync(
+  async (req: Request, res: Response) => {
+    const result = await AdminService.getAdminSubscriptionsList(req.query);
+    sendResponse(res, {
+      success: true,
+      statusCode: StatusCodes.OK,
+      message: 'Subscriptions list fetched',
+      meta: result.pagination,
+      data: result.data,
+    });
+  },
+);
 
 const getRevenueStats = catchAsync(async (req: Request, res: Response) => {
   const result = await AdminService.getRevenueStats();
@@ -94,10 +97,11 @@ const getTransactions = catchAsync(async (req: Request, res: Response) => {
     data: result.data,
   });
 });
+
 const getMovieProfile = catchAsync(async (req: Request, res: Response) => {
   const { movieId } = req.params;
   const result = await AdminService.getMovieProfileFromDB(movieId);
-  
+
   if (!result) {
     throw new ApiError(StatusCodes.NOT_FOUND, 'Movie profile not found');
   }
@@ -110,8 +114,6 @@ const getMovieProfile = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-// Methods moved to ContentController
-
 const patchContentBoost = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const { isPopularSeries } = req.body;
@@ -119,7 +121,7 @@ const patchContentBoost = catchAsync(async (req: Request, res: Response) => {
   const content = await Content.findByIdAndUpdate(
     id,
     { isPopularSeries },
-    { new: true }
+    { new: true },
   );
 
   if (!content) {

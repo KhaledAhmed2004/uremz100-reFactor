@@ -20,8 +20,6 @@ router.post(
   idempotency('registration'),
   upload.fields([
     { name: 'profileImage', maxCount: 1 },
-    { name: 'verificationImage', maxCount: 1 },
-    { name: 'verificationVideo', maxCount: 1 },
   ]),
   validateRequest(UserValidation.createUserZodSchema),
   verifyCaptcha(),
@@ -32,7 +30,7 @@ router.post(
 // REJECTED users are blocked by both login and the auth middleware —
 // the only recovery path is the one-time token they received by email
 // when the admin rejected them. Accepts the new verification artefacts
-// (image + video, optional profileImage) as multipart.
+// (optional profileImage) as multipart.
 router.post(
   '/reverify',
   rateLimitMiddleware({
@@ -43,8 +41,6 @@ router.post(
   idempotency('reverify'),
   upload.fields([
     { name: 'profileImage', maxCount: 1 },
-    { name: 'verificationImage', maxCount: 1 },
-    { name: 'verificationVideo', maxCount: 1 },
   ]),
   validateRequest(UserValidation.reverifyAccountZodSchema),
   UserController.reverifyAccount,

@@ -24,8 +24,6 @@ const payload = {
     password: config_1.default.super_admin.password,
     revertDate: '1970-01-01T00:00:00.000Z',
     dateOfBirth: '1970-01-01T00:00:00.000Z',
-    verificationImage: 'https://i.ibb.co/z5YHLV9/profile.png',
-    verificationVideo: 'https://i.ibb.co/z5YHLV9/profile.png',
     isVerified: true,
     status: user_1.USER_STATUS.ACTIVE,
 };

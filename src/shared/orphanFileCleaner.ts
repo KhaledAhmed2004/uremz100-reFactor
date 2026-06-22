@@ -4,8 +4,7 @@
  * Sweeps `uploads/users/{profiles,verifications,videos}` daily and
  * removes any file that:
  *   1. is older than 24 h (grace period for in-flight uploads), AND
- *   2. is not referenced by any User document's
- *      `profileImage`, `verificationImage`, or `verificationVideo`.
+ *      `profileImage`.
  *
  * Why: every profile-image / verification swap is supposed to unlink
  * the previous file. `unlinkFile` retries best-effort, but transient
@@ -174,23 +173,20 @@ export class OrphanFileCleaner {
   }
 
   /**
-   * Collect the set of absolute file paths currently referenced by
-   * any User document across `profileImage`, `verificationImage`,
-   * `verificationVideo`. Skips external URLs and the system default.
+   * any User document across `profileImage`.
+   * Skips external URLs and the system default.
    */
   private static async collectReferencedFiles(): Promise<Set<string>> {
     const referenced = new Set<string>();
 
     const cursor = User.find({})
-      .select('profileImage verificationImage verificationVideo')
+      .select('profileImage')
       .lean()
       .cursor();
 
     for await (const doc of cursor) {
       for (const value of [
         (doc as any).profileImage,
-        (doc as any).verificationImage,
-        (doc as any).verificationVideo,
       ]) {
         const absolute = this.storedToAbsolute(value);
         if (absolute) referenced.add(absolute);

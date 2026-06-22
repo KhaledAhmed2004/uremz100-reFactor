@@ -222,6 +222,34 @@ const getEpisodePlaybackUrl = catchAsync(async (req: Request, res: Response) => 
   });
 });
 
+const unlockContent = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload;
+  const { contentId } = req.params;
+  
+  const result = await ContentService.unlockContentInDB(user.id, contentId);
+  
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Content unlocked successfully',
+    data: result,
+  });
+});
+
+const unlockEpisode = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload;
+  const { episodeId } = req.params;
+  
+  const result = await ContentService.unlockEpisodeInDB(user.id, episodeId);
+  
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Episode unlocked successfully',
+    data: result,
+  });
+});
+
 const createSeason = catchAsync(async (req: Request, res: Response) => {
   const { seriesId } = req.params;
   const payload = { ...req.body };
@@ -294,6 +322,16 @@ const getEpisodes = catchAsync(async (req: Request, res: Response) => {
     message: 'Episodes list fetched',
     meta: result.pagination,
     data: result.data,
+  });
+});
+
+const getEpisodeDetails = catchAsync(async (req: Request, res: Response) => {
+  const result = await ContentService.getEpisodeDetailsFromDB(req.params.episodeId);
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Episode details retrieved successfully',
+    data: result,
   });
 });
 const createEpisode = catchAsync(async (req: Request, res: Response) => {
@@ -516,6 +554,68 @@ const getSimilarContentPublic = catchAsync(async (req, res) => {
   });
 });
 
+
+// --- Episode Analytics Controllers ---
+
+const getEpisodeAnalyticsEngagement = catchAsync(async (req: Request, res: Response) => {
+  const { episodeId } = req.params;
+
+  const [engagement] = await Promise.all([
+    AdminService.getEpisodeAnalyticsEngagementData(episodeId),
+    // AdminService.getEpisodeAnalyticsAudienceData(episodeId),
+    // AdminService.getEpisodeAnalyticsRevenueData(episodeId),
+  ]);
+
+  if (!engagement) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Episode analytics not found');
+  }
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Episode analytics engagement retrieved successfully',
+    data: {
+      engagement,
+      // audience,
+      // revenue,
+    },
+  });
+});
+
+const getEpisodeAnalyticsAudience = catchAsync(async (req: Request, res: Response) => {
+  const { episodeId } = req.params;
+
+  const result = await AdminService.getEpisodeAnalyticsAudienceData(episodeId);
+
+  if (!result) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Episode analytics not found');
+  }
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Episode analytics audience retrieved successfully',
+    data: result,
+  });
+});
+
+const getEpisodeAnalyticsOverview = catchAsync(async (req: Request, res: Response) => {
+  const { episodeId } = req.params;
+
+  const result = await AdminService.getEpisodeAnalyticsOverviewData(episodeId);
+
+  if (!result) {
+    throw new ApiError(StatusCodes.NOT_FOUND, 'Episode analytics not found');
+  }
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Episode analytics overview retrieved successfully',
+    data: result,
+  });
+});
+
 export const ContentController = {
   searchContent,
   favoriteContent,
@@ -529,6 +629,9 @@ export const ContentController = {
   getMovieDetails: getMovieDetails,
   getMovieAnalyticsEngagement,
   getMovieAnalyticsOverview,
+  getEpisodeAnalyticsEngagement,
+  getEpisodeAnalyticsAudience,
+  getEpisodeAnalyticsOverview,
   getMovieAnalyticsAudience,
   getSeriesDetails: getSeriesDetails,
   createSeason: createSeason,
@@ -536,6 +639,7 @@ export const ContentController = {
   updateSeason: updateSeason,
   deleteSeason: deleteSeason,
   getEpisodes: getEpisodes,
+  getEpisodeDetails: getEpisodeDetails,
   createEpisode: createEpisode,
   updateEpisode: updateEpisode,
   deleteEpisode: deleteEpisode,
@@ -554,5 +658,7 @@ export const ContentController = {
   getSimilarContentPublic: getSimilarContentPublic,
   getEpisodesBySeasonPublic: getEpisodesBySeasonPublic,
   getPlaybackUrl: getPlaybackUrl,
-  getEpisodePlaybackUrl: getEpisodePlaybackUrl
+  getEpisodePlaybackUrl: getEpisodePlaybackUrl,
+  unlockContent: unlockContent,
+  unlockEpisode: unlockEpisode
 };

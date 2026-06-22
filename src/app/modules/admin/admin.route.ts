@@ -5,33 +5,27 @@ import { AdminController } from './admin.controller';
 import validateRequest from '../../middlewares/validateRequest';
 import { UserValidation } from '../user/user.validation';
 import { UserController } from '../user/user.controller';
-import fileUploadHandler from '../../middlewares/fileUploadHandler';
 
 const router = express.Router();
-const upload = fileUploadHandler();
 
-// Dashboard Overview
 router.get(
   '/growth-metrics',
   auth(USER_ROLES.SUPER_ADMIN),
   AdminController.getDashboardStats,
 );
 
-// Visitors analytics chart
 router.get(
   '/visitors/analytics',
   auth(USER_ROLES.SUPER_ADMIN),
   AdminController.getVisitorAnalytics,
 );
 
-// Watchlist status breakdown
 router.get(
   '/watchlist/status',
   auth(USER_ROLES.SUPER_ADMIN),
   AdminController.getWatchlistStatus,
 );
 
-// User Management (Admin Dashboard)
 router.get(
   '/users/stats',
   auth(USER_ROLES.SUPER_ADMIN),
@@ -75,7 +69,6 @@ router.get(
   UserController.getUserById,
 );
 
-// Revenue Management
 router.get(
   '/revenue/stats',
   auth(USER_ROLES.SUPER_ADMIN),

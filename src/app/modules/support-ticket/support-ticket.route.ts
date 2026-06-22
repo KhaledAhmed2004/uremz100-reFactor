@@ -8,8 +8,11 @@ import { SupportTicketValidation } from './support-ticket.validation';
 
 const router = express.Router();
 
-const ATTACHMENT_FIELDS = [{ name: 'attachments', maxCount: 5 }];
-const FILE_OPTS = { maxFileSizeMB: 25 };
+const FILE_OPTS = { 
+  maxFileSizeMB: 25,
+  enforceAllowedFields: ['attachments'],
+  perFieldMaxCount: { attachments: 5 }
+};
 
 router.get(
   '/admin/list',
@@ -48,7 +51,7 @@ router.patch(
 router.post(
   '/',
   auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
-  fileHandler(ATTACHMENT_FIELDS, FILE_OPTS),
+  fileHandler(FILE_OPTS),
   validateRequest(SupportTicketValidation.createTicketZodSchema),
   SupportTicketController.createTicket,
 );
@@ -64,7 +67,7 @@ router.get(
 router.post(
   '/:ticketId/reply',
   auth(USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER),
-  fileHandler(ATTACHMENT_FIELDS, FILE_OPTS),
+  fileHandler(FILE_OPTS),
   validateRequest(SupportTicketValidation.replyTicketZodSchema),
   SupportTicketController.replyToTicket,
 );

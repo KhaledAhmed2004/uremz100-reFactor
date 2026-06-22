@@ -11,6 +11,9 @@ import { FavoriteContent } from '../favorite-content/favorite-content.model';
 import { Episode } from "./episode.model";
 import { Season } from "./season.model";
 import { Subscription } from '../subscription/subscription.model';
+import { UnlockedContent } from './unlocked-content.model';
+import { UnlockedEpisode } from './unlocked-episode.model';
+import { RewardService } from '../reward/reward.service';
 
 const s3 = new S3Client({
   region: 'auto',
@@ -48,6 +51,37 @@ const searchContentFromDB = async (query: Record<string, unknown>) => {
     pagination,
     data: result,
   };
+};
+
+const unlockEpisodeInDB = async (userId: string, episodeId: string) => {
+  const episode = await Episode.findById(episodeId);
+  if (!episode) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Episode not found');
+  }
+
+  if (!episode.requiredCoin || episode.requiredCoin <= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'This episode does not require coins to unlock');
+  }
+
+  const alreadyUnlocked = await UnlockedEpisode.findOne({
+    userId: new Types.ObjectId(userId),
+    episodeId: new Types.ObjectId(episodeId)
+  });
+
+  if (alreadyUnlocked) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'Episode is already unlocked');
+  }
+
+  // Deduct coins
+  await RewardService.deductCoinsForUnlock(userId, episode.requiredCoin);
+
+  // Record unlock
+  await UnlockedEpisode.create({
+    userId: new Types.ObjectId(userId),
+    episodeId: new Types.ObjectId(episodeId)
+  });
+
+  return { success: true, message: 'Episode unlocked successfully' };
 };
 
 const favoriteContentInDB = async (userId: string, contentId: string) => {
@@ -115,6 +149,7 @@ const getAdminMoviesList = async (query: Record<string, unknown>) => {
     duration: `${Math.floor(item.duration / 60)}h ${item.duration % 60}m`,
     status: item.status,
     planStatus: item.planStatus,
+    requiredCoin: item.requiredCoin,
   }));
 
   return {
@@ -149,6 +184,7 @@ const getAdminSeriesList = async (query: Record<string, unknown>) => {
         seasonsCount: item.seasonsCount || 0,
         status: item.status,
         planStatus: item.planStatus,
+        requiredCoin: item.requiredCoin,
       };
     })
   );
@@ -220,9 +256,9 @@ const getContentDetailsPublicFromDB = async (id: string) => {
           .sort('episodeNumber');
           
         const seasonObj = season.toObject();
-        delete seasonObj.createdAt;
-        delete seasonObj.updatedAt;
-        delete seasonObj.__v;
+        delete (seasonObj as any).createdAt;
+        delete (seasonObj as any).updatedAt;
+        delete (seasonObj as any).__v;
 
         return {
           ...seasonObj,
@@ -236,7 +272,7 @@ const getContentDetailsPublicFromDB = async (id: string) => {
       totalEpisodes,
       seasonsCount: seasons.length,
       seasons
-    };
+    } as any;
   } else if (content.type === 'MOVIE') {
     delete result.totalEpisodes;
     delete result.seasonsCount;
@@ -278,7 +314,7 @@ const _generateSignedUrlIfS3 = async (rawUrl: string): Promise<{ url: string; ex
     Key: key,
   });
 
-  const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+  const signedUrl = await getSignedUrl(s3 as any, command as any, { expiresIn: 3600 });
   
   return {
     url: signedUrl,
@@ -303,7 +339,7 @@ const _checkSubscription = async (userId: string | undefined, planStatus: string
   }
 
   // Allow ALL or if the user's plan intersects with the content's required plans
-  if (!planStatus.includes('ALL') && !planStatus.includes(subscription.planId.toString())) { // Simplified check. Ideally we cross-reference plan IDs
+  if (!planStatus.includes('ALL') && !planStatus.includes((subscription as any).plan?.toString() || (subscription as any).planId?.toString())) { // Simplified check. Ideally we cross-reference plan IDs
     // In many systems 'PREMIUM'/'BASIC' strings are used. If subscription has a plan object, we'd check its type.
     // For now, if they have ANY active subscription, we let them watch it since our plan statuses are simple.
     // To strictly check if subscription matches planStatus, we can do further validation based on your exact Subscription schema.
@@ -341,7 +377,22 @@ const generatePlaybackUrl = async (contentId: string, userId?: string, guestId?:
     throw new ApiError(httpStatus.NOT_FOUND, 'Content not found');
   }
 
-  await _checkSubscription(userId, content.planStatus);
+  try {
+    await _checkSubscription(userId, content.planStatus);
+  } catch (err: any) {
+    // If user is not subscribed, check if they unlocked it
+    if (userId && content.requiredCoin && content.requiredCoin > 0) {
+      const isUnlocked = await UnlockedContent.findOne({
+        userId: new Types.ObjectId(userId),
+        contentId: new Types.ObjectId(contentId)
+      });
+      if (!isUnlocked) {
+        throw new ApiError(httpStatus.FORBIDDEN, 'You need to unlock this content or subscribe to watch it');
+      }
+    } else {
+      throw err;
+    }
+  }
 
   const { url, expiresAt } = await _generateSignedUrlIfS3(content.videoUrl);
 
@@ -358,7 +409,24 @@ const generateEpisodePlaybackUrl = async (episodeId: string, userId?: string, gu
     throw new ApiError(httpStatus.NOT_FOUND, 'Episode not found');
   }
 
-  await _checkSubscription(userId, [episode.planStatus]);
+  try {
+    await _checkSubscription(userId, [episode.planStatus]);
+  } catch (err: any) {
+    let unlocked = false;
+    if (userId && episode.requiredCoin && episode.requiredCoin > 0) {
+      const isUnlocked = await UnlockedEpisode.findOne({
+        userId: new Types.ObjectId(userId),
+        episodeId: episode._id
+      });
+      if (isUnlocked) {
+        unlocked = true;
+      }
+    }
+    
+    if (!unlocked) {
+      throw err;
+    }
+  }
 
   const { url, expiresAt } = await _generateSignedUrlIfS3(episode.videoUrl);
 
@@ -407,8 +475,17 @@ const getEpisodesFromDB = async (seriesId: string, query: Record<string, unknown
       seasonId: ep.seasonId,
       seasonNumber: ep.seasonNumber,
       episodeNumber: ep.episodeNumber,
+      requiredCoin: ep.requiredCoin,
     })),
   };
+};
+
+const getEpisodeDetailsFromDB = async (episodeId: string) => {
+  const episode = await Episode.findById(episodeId);
+  if (!episode) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Episode not found');
+  }
+  return episode.toObject();
 };
 const createEpisodeToDB = async (seriesId: string, payload: any) => {
   const series = await Content.findById(seriesId);
@@ -435,6 +512,7 @@ const createEpisodeToDB = async (seriesId: string, payload: any) => {
     duration: payload.duration ? Number(payload.duration) : 0,
     seasonNumber: payload.seasonNumber ? Number(payload.seasonNumber) : 1,
     episodeNumber: payload.episodeNumber ? Number(payload.episodeNumber) : 1,
+    requiredCoin: payload.requiredCoin ? Number(payload.requiredCoin) : 0,
     releaseDate: payload.releaseDate ? new Date(payload.releaseDate) : new Date(),
     planStatus: payload.availability || 'FREE',
     status: payload.isDraft === 'true' || payload.isDraft === true ? 'DRAFT' : 'PUBLISHED',
@@ -460,6 +538,7 @@ const updateEpisodeInDB = async (id: string, payload: any) => {
   const updateData = { ...payload };
   if (payload.duration) updateData.duration = Number(payload.duration);
   if (payload.seasonNumber) updateData.seasonNumber = Number(payload.seasonNumber);
+  if (payload.requiredCoin !== undefined) updateData.requiredCoin = Number(payload.requiredCoin);
   if (payload.releaseDate) updateData.releaseDate = new Date(payload.releaseDate);
   if (payload.availability) updateData.planStatus = payload.availability;
   if (payload.isDraft !== undefined) {
@@ -507,7 +586,7 @@ const deleteEpisodeFromDB = async (id: string) => {
   return result;
 };
 const createMovieToDB = async (payload: any) => {
-  const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, thumbnail, ...rest } = payload;
+  const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, thumbnail, requiredCoin, ...rest } = payload;
 
   const movieData: any = {
     ...rest,
@@ -521,7 +600,8 @@ const createMovieToDB = async (payload: any) => {
     planStatus: Array.isArray(availability) ? availability : (availability ? [availability] : ['FREE']),
     status: isDraft === 'true' || isDraft === true ? 'DRAFT' : 'PUBLISHED',
     publishedAt: isDraft === 'true' || isDraft === true ? undefined : new Date(),
-    type: 'MOVIE'
+    type: 'MOVIE',
+    requiredCoin: requiredCoin ? Number(requiredCoin) : 0
   };
 
   if (isPremium !== undefined) movieData.isPremium = isPremium === 'true' || isPremium === true;
@@ -590,7 +670,7 @@ const updateSeriesStatusInDB = async (id: string, status: string) => {
   return result;
 };
 const updateMovieInDB = async (id: string, payload: any) => {
-  const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, ...rest } = payload;
+  const { isDraft, availability, genres, cast, duration, releaseYear, rating, views, isPremium, releaseDate, isPopularSeries, requiredCoin, ...rest } = payload;
 
   const updateData: any = { ...rest };
   if (genres) updateData.genres = Array.isArray(genres) ? genres : [genres];
@@ -602,6 +682,7 @@ const updateMovieInDB = async (id: string, payload: any) => {
   if (isPremium !== undefined) updateData.isPremium = isPremium === 'true' || isPremium === true;
   if (releaseDate !== undefined) updateData.releaseDate = new Date(releaseDate);
   if (isPopularSeries !== undefined) updateData.isPopularSeries = isPopularSeries === 'true' || isPopularSeries === true;
+  if (requiredCoin !== undefined) updateData.requiredCoin = Number(requiredCoin);
 
   if (availability) updateData.planStatus = Array.isArray(availability) ? availability : [availability];
   if (isDraft !== undefined) {
@@ -652,7 +733,7 @@ const generateMultipartPresignedUrls = async (
         PartNumber: partNumber,
       });
 
-      const url = await getSignedUrl(s3, command, { expiresIn: 3600 });
+      const url = await getSignedUrl(s3 as any, command as any, { expiresIn: 3600 });
       return { partNumber, url };
     })
   );
@@ -825,8 +906,8 @@ const getMoviesStats = async () => {
   // CTR (Click-Through Rate) - Since there is no impression data, we calculate an Engagement Rate (Likes / Views)
   const calculateRatio = (likes: number, views: number) => (views > 0 ? (likes / views) * 100 : 0);
   
-  const currentCtr = calculateRatio(likesGrowth.thisPeriodCount || 0, viewsGrowth.thisPeriodCount || 0);
-  const previousCtr = calculateRatio(likesGrowth.lastPeriodCount || 0, viewsGrowth.lastPeriodCount || 0);
+  const currentCtr = calculateRatio((likesGrowth as any).thisPeriodCount || 0, (viewsGrowth as any).thisPeriodCount || 0);
+  const previousCtr = calculateRatio((likesGrowth as any).lastPeriodCount || 0, (viewsGrowth as any).lastPeriodCount || 0);
   
   const ctrValue = calculateRatio(likesGrowth.total, viewsGrowth.total);
   
@@ -938,8 +1019,8 @@ const getSeriesStats = async () => {
   // CTR (Click-Through Rate) - Since there is no impression data, we calculate an Engagement Rate (Likes / Views)
   const calculateRatio = (likes: number, views: number) => (views > 0 ? (likes / views) * 100 : 0);
   
-  const currentCtr = calculateRatio(likesGrowth.thisPeriodCount || 0, viewsGrowth.thisPeriodCount || 0);
-  const previousCtr = calculateRatio(likesGrowth.lastPeriodCount || 0, viewsGrowth.lastPeriodCount || 0);
+  const currentCtr = calculateRatio((likesGrowth as any).thisPeriodCount || 0, (viewsGrowth as any).thisPeriodCount || 0);
+  const previousCtr = calculateRatio((likesGrowth as any).lastPeriodCount || 0, (viewsGrowth as any).lastPeriodCount || 0);
   
   const ctrValue = calculateRatio(likesGrowth.total, viewsGrowth.total);
   
@@ -967,6 +1048,35 @@ const getSeriesStats = async () => {
   };
 };
 
+const unlockContentInDB = async (userId: string, contentId: string) => {
+  const content = await Content.findById(contentId);
+  if (!content) {
+    throw new ApiError(httpStatus.NOT_FOUND, 'Content not found');
+  }
+
+  if (!content.requiredCoin || content.requiredCoin <= 0) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'This content cannot be unlocked with coins');
+  }
+
+  const alreadyUnlocked = await UnlockedContent.findOne({
+    userId: new Types.ObjectId(userId),
+    contentId: new Types.ObjectId(contentId),
+  });
+
+  if (alreadyUnlocked) {
+    throw new ApiError(httpStatus.BAD_REQUEST, 'You have already unlocked this content');
+  }
+
+  await RewardService.deductCoinsForUnlock(userId, content.requiredCoin);
+
+  const unlocked = await UnlockedContent.create({
+    userId: new Types.ObjectId(userId),
+    contentId: new Types.ObjectId(contentId),
+  });
+
+  return unlocked;
+};
+
 export const ContentService = {
   searchContentFromDB,
   favoriteContentInDB,
@@ -980,6 +1090,7 @@ export const ContentService = {
   getMovieDetailsFromDB: getMovieDetailsFromDB,
   getSeriesDetailsFromDB: getSeriesDetailsFromDB,
   getEpisodesFromDB: getEpisodesFromDB,
+  getEpisodeDetailsFromDB: getEpisodeDetailsFromDB,
   createEpisodeToDB: createEpisodeToDB,
   updateEpisodeInDB: updateEpisodeInDB,
   deleteEpisodeFromDB: deleteEpisodeFromDB,
@@ -1002,5 +1113,7 @@ export const ContentService = {
   getSimilarContentFromDB: getSimilarContentFromDB,
   getEpisodesBySeasonPublicFromDB: getEpisodesBySeasonPublicFromDB,
   generatePlaybackUrl: generatePlaybackUrl,
-  generateEpisodePlaybackUrl: generateEpisodePlaybackUrl
+  generateEpisodePlaybackUrl: generateEpisodePlaybackUrl,
+  unlockContentInDB: unlockContentInDB,
+  unlockEpisodeInDB: unlockEpisodeInDB
 };

@@ -58,7 +58,6 @@ const getSubscriptionsStats = (0, catchAsync_1.default)((req, res) => __awaiter(
         data: result,
     });
 }));
-// --- Season Management ---
 const getAdminSubscriptions = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const result = yield admin_service_1.AdminService.getAdminSubscriptionsList(req.query);
     (0, sendResponse_1.default)(res, {
@@ -101,7 +100,6 @@ const getMovieProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
         data: result,
     });
 }));
-// Methods moved to ContentController
 const patchContentBoost = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
     const { isPopularSeries } = req.body;

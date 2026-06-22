@@ -30,6 +30,7 @@ export interface IContent {
   status: 'PUBLISHED' | 'DRAFT';
   seasonsCount?: number;
   totalEpisodes?: number;
+  requiredCoin: number;
 }
 
 export type ContentModel = Model<IContent, Record<string, unknown>>;
@@ -80,6 +81,7 @@ const contentSchema = new Schema<IContent>(
     },
     seasonsCount: { type: Number, default: 0 },
     totalEpisodes: { type: Number, default: 0 },
+    requiredCoin: { type: Number, default: 0 },
   },
   {
     timestamps: true,

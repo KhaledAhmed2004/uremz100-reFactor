@@ -2,8 +2,9 @@ import { logger, errorLogger } from '../../shared/logger';
 
 // Allowed origins for CORS
 export const allowedOrigins: string[] = [
+  'https://streaming-pearl-ten.vercel.app',
   'https://adnan5001.binarybards.online',
-  'https://streaming-pearl-ten.vercel.app'
+  'http://localhost:5001'
 ];
 
 // Enable with env CORS_DEBUG=true or CORS_DEBUG=1

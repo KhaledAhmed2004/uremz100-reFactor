@@ -40,7 +40,7 @@ describe('HomeService.getHomeContentFromDB', () => {
     
     // Simulate DB returning data
     const mockData = [{ _id: '1', title: 'Test Movie', type: 'MOVIE' }];
-    (Content.limit as any).mockResolvedValue(mockData);
+    ((Content as any).limit as any).mockResolvedValue(mockData);
 
     const result = await HomeService.getHomeContentFromDB();
 
@@ -59,7 +59,7 @@ describe('HomeService.getHomeContentFromDB', () => {
     (redisClient.get as any).mockResolvedValue(JSON.stringify(cachedData));
 
     // Reset DB mocks so we can verify they weren't called
-    (Content.limit as any).mockClear();
+    ((Content as any).limit as any).mockClear();
 
     const result = await HomeService.getHomeContentFromDB();
 
@@ -77,7 +77,7 @@ describe('HomeService.getHomeContentFromDB', () => {
     (redisClient.get as any).mockResolvedValue(null);
     
     // Simulate DB rejecting
-    (Content.limit as any).mockRejectedValueOnce(new Error('DB Error')).mockResolvedValue([]);
+    ((Content as any).limit as any).mockRejectedValueOnce(new Error('DB Error')).mockResolvedValue([]);
 
     // It should not throw error, it should just return the fulfilled sections
     const result = await HomeService.getHomeContentFromDB();

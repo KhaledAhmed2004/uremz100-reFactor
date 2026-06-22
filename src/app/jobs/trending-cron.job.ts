@@ -66,7 +66,7 @@ export class TrendingCronJob {
         if (contents.length === 0) break;
 
         for (const item of contents) {
-          const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : Date.now();
+          const createdAt = (item as any).createdAt ? new Date((item as any).createdAt).getTime() : Date.now();
           const daysSinceRelease = Math.max(
             1,
             (today.getTime() - createdAt) / (1000 * 60 * 60 * 24)
