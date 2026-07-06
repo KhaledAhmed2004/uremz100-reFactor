@@ -103,12 +103,6 @@ const getUserProfileFromDB = async (
     throw new ApiError(StatusCodes.NOT_FOUND, "User doesn't exist!");
   }
 
-  // Flatten location for consistency with list API
-  if (isExistUser.location) {
-    (isExistUser as any).country = isExistUser.location.country;
-    (isExistUser as any).city = isExistUser.location.city;
-    delete isExistUser.location;
-  }
 
   return isExistUser as Partial<IUser>;
 };
@@ -133,10 +127,7 @@ const updateProfileToDB = async (
     unlinkFile(isExistUser.profileImage);
   }
 
-  // Transform location (legacy latitude/longitude mapping removed)
-  if (payload.location) {
-    payload.location = payload.location as any;
-  }
+
 
   const updateDoc = await User.findOneAndUpdate({ _id: id }, payload, {
     new: true,
@@ -432,10 +423,10 @@ const getUserByIdFromDB = async (id: string, requester: JwtPayload): Promise<Par
 
   // Admin specific view: can see all fields except excluded ones above
   // Flatten location for consistency with other profile APIs
-  if (user.location) {
-    (user as any).country = user.location.country;
-    (user as any).city = user.location.city;
-    delete user.location;
+  if ((user as any).location) {
+    (user as any).country = (user as any).location.country;
+    (user as any).city = (user as any).location.city;
+    delete (user as any).location;
   }
 
   return user as Partial<IUser>;
@@ -560,11 +551,7 @@ const updateUserByAdminInDB = async (id: string, payload: Partial<IUser>) => {
   if (payload.dateOfBirth !== undefined) (user as any).dateOfBirth = payload.dateOfBirth;
   if ((payload as any).revertDate !== undefined) (user as any).revertDate = (payload as any).revertDate;
   
-  if (payload.location !== undefined) {
-    (user as any).location = payload.location;
-  }
-
-  if (payload.gender !== undefined) (user as any).gender = payload.gender;
+  if (payload.phone !== undefined) (user as any).phone = payload.phone;
   if (payload.profileImage !== undefined) (user as any).profileImage = payload.profileImage;
   if (payload.status !== undefined) (user as any).status = payload.status;
   if (payload.role !== undefined) (user as any).role = payload.role;
@@ -639,12 +626,6 @@ const getUserDetailsByIdFromDB = async (id: string, requester: JwtPayload) => {
   // Convert to object and return
   const result = user.toObject();
   
-  // Flatten location for convenience if needed, or keep as is
-  if (result.location) {
-    (result as any).country = result.location.country;
-    (result as any).city = result.location.city;
-    delete result.location;
-  }
 
   // Final cleanup of internal status/flags
   delete (result as any).status;

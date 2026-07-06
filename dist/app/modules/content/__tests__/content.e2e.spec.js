@@ -321,6 +321,7 @@ function createAuthUser() {
                 seasonId: season._id.toString(),
                 seasonNumber: 1,
                 episodeNumber: 1,
+                requiredCoin: 50,
                 availability: 'FREE'
             };
             const response = yield (0, supertest_1.default)(app_1.default)
@@ -331,6 +332,7 @@ function createAuthUser() {
             (0, vitest_1.expect)(response.status).toBe(http_status_codes_1.StatusCodes.CREATED);
             (0, vitest_1.expect)(response.body.success).toBe(true);
             (0, vitest_1.expect)(response.body.data.title).toBe('Episode 1');
+            (0, vitest_1.expect)(response.body.data.requiredCoin).toBe(50);
         }));
         (0, vitest_1.it)('successfully fetches episodes (GET /api/v1/contents/series/:seriesId/episodes)', () => __awaiter(void 0, void 0, void 0, function* () {
             const { token } = yield createAuthUser(user_1.USER_ROLES.SUPER_ADMIN);

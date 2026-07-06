@@ -412,8 +412,16 @@ const getEpisodesFromDB = (seriesId, query) => __awaiter(void 0, void 0, void 0,
             seasonId: ep.seasonId,
             seasonNumber: ep.seasonNumber,
             episodeNumber: ep.episodeNumber,
+            requiredCoin: ep.requiredCoin,
         })),
     };
+});
+const getEpisodeDetailsFromDB = (episodeId) => __awaiter(void 0, void 0, void 0, function* () {
+    const episode = yield episode_model_1.Episode.findById(episodeId);
+    if (!episode) {
+        throw new ApiError_1.default(http_status_1.default.NOT_FOUND, 'Episode not found');
+    }
+    return episode.toObject();
 });
 const createEpisodeToDB = (seriesId, payload) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
@@ -919,6 +927,7 @@ exports.ContentService = {
     getMovieDetailsFromDB: getMovieDetailsFromDB,
     getSeriesDetailsFromDB: getSeriesDetailsFromDB,
     getEpisodesFromDB: getEpisodesFromDB,
+    getEpisodeDetailsFromDB: getEpisodeDetailsFromDB,
     createEpisodeToDB: createEpisodeToDB,
     updateEpisodeInDB: updateEpisodeInDB,
     deleteEpisodeFromDB: deleteEpisodeFromDB,

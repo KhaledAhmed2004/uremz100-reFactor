@@ -8,10 +8,12 @@ const createUserZodSchema = zod_1.z.object({
     body: zod_1.z
         .object({
         name: zod_1.z.string({ required_error: 'Name is required' }).min(1),
+        phone: zod_1.z.string({ required_error: 'Phone is required' }).min(1),
         email: zod_1.z
             .string({ required_error: 'Email is required' })
             .email('Invalid email address')
             .toLowerCase(),
+        dateOfBirth: zod_1.z.string({ required_error: 'Date of birth is required' }).datetime(),
         role: zod_1.z.enum([user_1.USER_ROLES.SUPER_ADMIN, user_1.USER_ROLES.ADMIN, user_1.USER_ROLES.USER]).optional().default(user_1.USER_ROLES.USER),
         password: zod_1.z.string().optional(),
         googleId: zod_1.z.string().optional(),
@@ -37,25 +39,9 @@ const createUserZodSchema = zod_1.z.object({
 const updateUserZodSchema = zod_1.z.object({
     body: zod_1.z.object({
         name: zod_1.z.string().optional(),
-        gender: zod_1.z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+        phone: zod_1.z.string().optional(),
         dateOfBirth: zod_1.z.string().datetime().optional(),
         profileImage: zod_1.z.string().optional(),
-        location: zod_1.z
-            .preprocess((v) => {
-            if (typeof v === 'string') {
-                try {
-                    return JSON.parse(v);
-                }
-                catch (_a) {
-                    return v;
-                }
-            }
-            return v;
-        }, zod_1.z.object({
-            country: zod_1.z.string().optional(),
-            city: zod_1.z.string().optional()
-        }))
-            .optional()
     }),
 });
 exports.UserValidation = {
@@ -87,7 +73,7 @@ exports.UserValidation = {
         }),
         body: zod_1.z.object({
             name: zod_1.z.string().optional(),
-            gender: zod_1.z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+            phone: zod_1.z.string().optional(),
             email: zod_1.z.string().email('Invalid email address').toLowerCase().optional(),
             dateOfBirth: zod_1.z.string().datetime().optional(),
             status: zod_1.z.enum([
@@ -102,22 +88,6 @@ exports.UserValidation = {
                 user_1.USER_ROLES.ADMIN,
                 user_1.USER_ROLES.USER
             ]).optional(),
-            location: zod_1.z
-                .preprocess((v) => {
-                if (typeof v === 'string') {
-                    try {
-                        return JSON.parse(v);
-                    }
-                    catch (_a) {
-                        return v;
-                    }
-                }
-                return v;
-            }, zod_1.z.object({
-                country: zod_1.z.string().optional(),
-                city: zod_1.z.string().optional()
-            }))
-                .optional()
         }),
     }),
     getUserDetailsZodSchema: zod_1.z.object({

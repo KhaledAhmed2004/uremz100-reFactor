@@ -140,14 +140,14 @@ const userSchema = new mongoose_1.Schema({
         default: [],
         select: false,
     },
-    gender: {
+    phone: {
         type: String,
-        enum: ['MALE', 'FEMALE', 'OTHER'],
-        required: false,
+        required: true,
+        unique: true,
     },
     dateOfBirth: {
         type: Date,
-        required: false,
+        required: true,
     },
     profileImage: {
         type: String,
@@ -156,10 +156,6 @@ const userSchema = new mongoose_1.Schema({
         // in src/app.ts. Relative path; clients resolve against {{baseUrl}}.
         // Replaces the previous external CDN dependency on i.ibb.co (SPOF).
         default: '/default-avatar.svg',
-    },
-    location: {
-        country: { type: String },
-        city: { type: String },
     },
     status: {
         type: String,

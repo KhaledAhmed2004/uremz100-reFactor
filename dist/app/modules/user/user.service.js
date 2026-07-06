@@ -117,12 +117,6 @@ const getUserProfileFromDB = (user) => __awaiter(void 0, void 0, void 0, functio
     if (!isExistUser) {
         throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, "User doesn't exist!");
     }
-    // Flatten location for consistency with list API
-    if (isExistUser.location) {
-        isExistUser.country = isExistUser.location.country;
-        isExistUser.city = isExistUser.location.city;
-        delete isExistUser.location;
-    }
     return isExistUser;
 });
 const updateProfileToDB = (user, payload) => __awaiter(void 0, void 0, void 0, function* () {
@@ -138,10 +132,6 @@ const updateProfileToDB = (user, payload) => __awaiter(void 0, void 0, void 0, f
     //unlink file here
     if (payload.profileImage) {
         (0, unlinkFile_1.default)(isExistUser.profileImage);
-    }
-    // Transform location (legacy latitude/longitude mapping removed)
-    if (payload.location) {
-        payload.location = payload.location;
     }
     const updateDoc = yield user_model_1.User.findOneAndUpdate({ _id: id }, payload, {
         new: true,
@@ -498,11 +488,8 @@ const updateUserByAdminInDB = (id, payload) => __awaiter(void 0, void 0, void 0,
         user.dateOfBirth = payload.dateOfBirth;
     if (payload.revertDate !== undefined)
         user.revertDate = payload.revertDate;
-    if (payload.location !== undefined) {
-        user.location = payload.location;
-    }
-    if (payload.gender !== undefined)
-        user.gender = payload.gender;
+    if (payload.phone !== undefined)
+        user.phone = payload.phone;
     if (payload.profileImage !== undefined)
         user.profileImage = payload.profileImage;
     if (payload.status !== undefined)
@@ -557,12 +544,6 @@ const getUserDetailsByIdFromDB = (id, requester) => __awaiter(void 0, void 0, vo
     }
     // Convert to object and return
     const result = user.toObject();
-    // Flatten location for convenience if needed, or keep as is
-    if (result.location) {
-        result.country = result.location.country;
-        result.city = result.location.city;
-        delete result.location;
-    }
     // Final cleanup of internal status/flags
     delete result.status;
     delete result.deletedAt;

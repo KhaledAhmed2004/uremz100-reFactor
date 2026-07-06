@@ -106,14 +106,14 @@ const userSchema = new Schema<IUser>(
       default: [],
       select: false,
     },
-    gender: {
+    phone: {
       type: String,
-      enum: ['MALE', 'FEMALE', 'OTHER'],
-      required: false,
+      required: true,
+      unique: true,
     },
     dateOfBirth: {
       type: Date,
-      required: false,
+      required: true,
     },
     profileImage: {
       type: String,
@@ -123,10 +123,7 @@ const userSchema = new Schema<IUser>(
       // Replaces the previous external CDN dependency on i.ibb.co (SPOF).
       default: '/default-avatar.svg',
     },
-    location: {
-      country: { type: String },
-      city: { type: String },
-    },
+
     status: {
       type: String,
       enum: Object.values(USER_STATUS),

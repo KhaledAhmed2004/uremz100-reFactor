@@ -20,6 +20,7 @@ const my_collection_route_1 = require("../app/modules/my-collection/my-collectio
 const shorts_route_1 = require("../app/modules/shorts/shorts.route");
 const reward_route_1 = require("../app/modules/reward/reward.route");
 const revenue_route_1 = require("../app/modules/revenue/revenue.route");
+const medication_route_1 = require("../app/modules/medication/medication.route");
 const router = express_1.default.Router();
 const apiRoutes = [
     {
@@ -85,6 +86,10 @@ const apiRoutes = [
     {
         path: '/rewards',
         route: reward_route_1.RewardRoutes,
+    },
+    {
+        path: '/medications',
+        route: medication_route_1.MedicationRoutes,
     },
 ];
 apiRoutes.forEach(route => router.use(route.path, route.route));

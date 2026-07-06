@@ -15,6 +15,7 @@ import { MyCollectionRoutes } from '../app/modules/my-collection/my-collection.r
 import { ShortsRoutes } from '../app/modules/shorts/shorts.route';
 import { RewardRoutes } from '../app/modules/reward/reward.route';
 import { RevenueRoutes } from '../app/modules/revenue/revenue.route';
+import { MedicationRoutes } from '../app/modules/medication/medication.route';
 
 const router = express.Router();
 
@@ -83,6 +84,10 @@ const apiRoutes = [
   {
     path: '/rewards',
     route: RewardRoutes,
+  },
+  {
+    path: '/medications',
+    route: MedicationRoutes,
   },
 ];
 

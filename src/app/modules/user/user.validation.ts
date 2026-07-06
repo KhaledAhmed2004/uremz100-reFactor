@@ -7,10 +7,12 @@ const createUserZodSchema = z.object({
   body: z
     .object({
       name: z.string({ required_error: 'Name is required' }).min(1),
+      phone: z.string({ required_error: 'Phone is required' }).min(1),
       email: z
         .string({ required_error: 'Email is required' })
         .email('Invalid email address')
         .toLowerCase(),
+      dateOfBirth: z.string({ required_error: 'Date of birth is required' }).datetime(),
       role: z.enum([USER_ROLES.SUPER_ADMIN, USER_ROLES.ADMIN, USER_ROLES.USER]).optional().default(USER_ROLES.USER),
       password: z.string().optional(),
       googleId: z.string().optional(),
@@ -36,24 +38,9 @@ const createUserZodSchema = z.object({
 const updateUserZodSchema = z.object({
   body: z.object({
     name: z.string().optional(),
-    gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+    phone: z.string().optional(),
     dateOfBirth: z.string().datetime().optional(),
     profileImage: z.string().optional(),
-    location: z
-      .preprocess((v: unknown) => {
-        if (typeof v === 'string') {
-          try {
-            return JSON.parse(v);
-          } catch {
-            return v;
-          }
-        }
-        return v;
-      }, z.object({
-        country: z.string().optional(),
-        city: z.string().optional()
-      }))
-      .optional()
   }),
 });
 
@@ -86,7 +73,7 @@ export const UserValidation = {
     }),
     body: z.object({
       name: z.string().optional(),
-      gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+      phone: z.string().optional(),
       email: z.string().email('Invalid email address').toLowerCase().optional(),
       dateOfBirth: z.string().datetime().optional(),
       status: z.enum([
@@ -101,21 +88,6 @@ export const UserValidation = {
         USER_ROLES.ADMIN, 
         USER_ROLES.USER
       ]).optional(),
-      location: z
-        .preprocess((v: unknown) => {
-          if (typeof v === 'string') {
-            try {
-              return JSON.parse(v);
-            } catch {
-              return v;
-            }
-          }
-          return v;
-        }, z.object({
-          country: z.string().optional(),
-          city: z.string().optional()
-        }))
-        .optional()
     }),
   }),
   getUserDetailsZodSchema: z.object({

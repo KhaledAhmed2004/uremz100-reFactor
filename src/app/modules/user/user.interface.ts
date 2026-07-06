@@ -21,20 +21,16 @@ export type DeviceSessionMetadata = {
   userAgent?: string;
 };
 
-export interface ILocation {
-  country?: string;
-  city?: string;
-}
+
 
 export interface IUser {
   name: string;
   email: string;
   password?: string;
   role: USER_ROLES;
-  gender?: 'MALE' | 'FEMALE' | 'OTHER';
-  dateOfBirth?: Date;
+  phone: string;
+  dateOfBirth: Date;
   profileImage?: string;
-  location?: ILocation;
   status: USER_STATUS;
   isVerified: boolean;
   deviceTokens?: IDeviceToken[];

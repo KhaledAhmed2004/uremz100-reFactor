@@ -69,6 +69,10 @@ router.patch('/series/seasons/:seasonId', (0, auth_1.default)(user_1.USER_ROLES.
 router.delete('/series/seasons/:seasonId', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.deleteSeason);
 // Episode Management
 router.get('/series/:seriesId/episodes', content_controller_1.ContentController.getEpisodes);
+router.get('/series/episodes/:episodeId', content_controller_1.ContentController.getEpisodeDetails);
+router.get('/series/episodes/:episodeId/analytics/overview', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getEpisodeAnalyticsOverview);
+router.get('/series/episodes/:episodeId/analytics/audience', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getEpisodeAnalyticsAudience);
+router.get('/series/episodes/:episodeId/analytics/engagement', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), content_controller_1.ContentController.getEpisodeAnalyticsEngagement);
 router.post('/series/:seriesId/episodes', (0, auth_1.default)(user_1.USER_ROLES.SUPER_ADMIN), upload.fields([
     { name: 'videoFile', maxCount: 1 },
     { name: 'thumbnailFile', maxCount: 1 },

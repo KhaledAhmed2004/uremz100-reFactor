@@ -293,6 +293,15 @@ const getEpisodes = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
         data: result.data,
     });
 }));
+const getEpisodeDetails = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield content_service_1.ContentService.getEpisodeDetailsFromDB(req.params.episodeId);
+    (0, sendResponse_1.default)(res, {
+        success: true,
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        message: 'Episode details retrieved successfully',
+        data: result,
+    });
+}));
 const createEpisode = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const payload = Object.assign({}, req.body);
     if (req.files) {
@@ -493,6 +502,54 @@ const getSimilarContentPublic = (0, catchAsync_1.default)((req, res) => __awaite
         data: result,
     });
 }));
+// --- Episode Analytics Controllers ---
+const getEpisodeAnalyticsEngagement = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { episodeId } = req.params;
+    const [engagement] = yield Promise.all([
+        admin_service_1.AdminService.getEpisodeAnalyticsEngagementData(episodeId),
+        // AdminService.getEpisodeAnalyticsAudienceData(episodeId),
+        // AdminService.getEpisodeAnalyticsRevenueData(episodeId),
+    ]);
+    if (!engagement) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Episode analytics not found');
+    }
+    (0, sendResponse_1.default)(res, {
+        success: true,
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        message: 'Episode analytics engagement retrieved successfully',
+        data: {
+            engagement,
+            // audience,
+            // revenue,
+        },
+    });
+}));
+const getEpisodeAnalyticsAudience = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { episodeId } = req.params;
+    const result = yield admin_service_1.AdminService.getEpisodeAnalyticsAudienceData(episodeId);
+    if (!result) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Episode analytics not found');
+    }
+    (0, sendResponse_1.default)(res, {
+        success: true,
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        message: 'Episode analytics audience retrieved successfully',
+        data: result,
+    });
+}));
+const getEpisodeAnalyticsOverview = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { episodeId } = req.params;
+    const result = yield admin_service_1.AdminService.getEpisodeAnalyticsOverviewData(episodeId);
+    if (!result) {
+        throw new ApiError_1.default(http_status_codes_1.StatusCodes.NOT_FOUND, 'Episode analytics not found');
+    }
+    (0, sendResponse_1.default)(res, {
+        success: true,
+        statusCode: http_status_codes_1.StatusCodes.OK,
+        message: 'Episode analytics overview retrieved successfully',
+        data: result,
+    });
+}));
 exports.ContentController = {
     searchContent,
     favoriteContent,
@@ -506,6 +563,9 @@ exports.ContentController = {
     getMovieDetails: getMovieDetails,
     getMovieAnalyticsEngagement,
     getMovieAnalyticsOverview,
+    getEpisodeAnalyticsEngagement,
+    getEpisodeAnalyticsAudience,
+    getEpisodeAnalyticsOverview,
     getMovieAnalyticsAudience,
     getSeriesDetails: getSeriesDetails,
     createSeason: createSeason,
@@ -513,6 +573,7 @@ exports.ContentController = {
     updateSeason: updateSeason,
     deleteSeason: deleteSeason,
     getEpisodes: getEpisodes,
+    getEpisodeDetails: getEpisodeDetails,
     createEpisode: createEpisode,
     updateEpisode: updateEpisode,
     deleteEpisode: deleteEpisode,

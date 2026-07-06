@@ -1299,7 +1299,7 @@ const getEpisodeAnalyticsOverviewData = async (id: string) => {
 
   return {
     views: {
-      value: episode.views,
+      value: (episode as any).views,
       change: {
         percentage: viewGrowthAbs,
         direction: viewDirection
@@ -1315,7 +1315,7 @@ const getEpisodeAnalyticsOverviewData = async (id: string) => {
     },
     performance_chart: {
       labels: ['Day 1', 'Day 3', 'Day 5', 'Day 7', 'Day 10', 'Day 14', 'Day 21', 'Day 28'],
-      this_video: [10000, 25000, 35000, 45000, 55000, 65000, 75000, episode.views],
+      this_video: [10000, 25000, 35000, 45000, 55000, 65000, 75000, (episode as any).views],
       typical_performance: [12000, 28000, 38000, 48000, 58000, 68000, 78000, 81000],
     },
     realtimeAnalytics: {
