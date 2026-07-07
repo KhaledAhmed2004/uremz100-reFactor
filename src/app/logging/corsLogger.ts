@@ -1,10 +1,15 @@
 import { logger, errorLogger } from '../../shared/logger';
 
+const envOrigins = process.env.CORS_ALLOWED_ORIGINS 
+  ? process.env.CORS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
+  : [];
+
 // Allowed origins for CORS
 export const allowedOrigins: string[] = [
   'https://streaming-pearl-ten.vercel.app',
   'https://adnan5001.binarybards.online',
-  'http://localhost:5001'
+  'http://localhost:5001',
+  ...envOrigins
 ];
 
 // Enable with env CORS_DEBUG=true or CORS_DEBUG=1
