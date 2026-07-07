@@ -180,7 +180,7 @@ const wrapController = (controllerName: string, obj: Record<string, any>) => {
  *   stripe-connect.service.ts → StripeConnectService
  */
 const fileNameToExportName = (fileName: string, suffix: 'Service' | 'Controller'): string => {
-  const baseName = fileName.replace(`.${suffix.toLowerCase()}.ts`, '');
+  const baseName = fileName.replace(new RegExp(`\\.${suffix.toLowerCase()}\\.(ts|js)$`), '');
   const pascalCase = baseName
     .split(/[-_]/)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
@@ -190,7 +190,7 @@ const fileNameToExportName = (fileName: string, suffix: 'Service' | 'Controller'
 
 /**
  * Auto-discover and wrap all services and controllers
- * Scans src/app/modules/* for *.service.ts and *.controller.ts files
+ * Scans src/app/modules/* for *.service.ts/js and *.controller.ts/js files
  */
 const autoDiscoverAndWrap = (): void => {
   const modulesPath = join(__dirname, '../modules');
@@ -221,8 +221,8 @@ const autoDiscoverAndWrap = (): void => {
         continue; // Skip if can't read directory
       }
 
-      // Auto-discover services (*.service.ts)
-      const serviceFiles = files.filter(f => f.endsWith('.service.ts'));
+      // Auto-discover services
+      const serviceFiles = files.filter(f => f.match(/\.service\.(ts|js)$/) && !f.endsWith('.d.ts'));
 
       for (const serviceFile of serviceFiles) {
         const servicePath = join(modulePath, serviceFile);
@@ -268,8 +268,8 @@ const autoDiscoverAndWrap = (): void => {
         }
       }
 
-      // Auto-discover controllers (*.controller.ts)
-      const controllerFiles = files.filter(f => f.endsWith('.controller.ts'));
+      // Auto-discover controllers
+      const controllerFiles = files.filter(f => f.match(/\.controller\.(ts|js)$/) && !f.endsWith('.d.ts'));
 
       for (const controllerFile of controllerFiles) {
         const controllerPath = join(modulePath, controllerFile);
