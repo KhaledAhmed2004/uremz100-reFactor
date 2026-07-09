@@ -416,6 +416,12 @@ const createMovie = catchAsync(async (req: Request, res: Response) => {
 const createSeries = catchAsync(async (req: Request, res: Response) => {
   const payload = { ...req.body };
 
+  if (req.files) {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    if (files['trailerFile']) payload.trailerUrl = (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
+    if (files['posterFile']) payload.posterUrl = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
+  }
+
   const result = await ContentService.createSeriesToDB(payload);
   sendResponse(res, {
     success: true,
@@ -426,6 +432,12 @@ const createSeries = catchAsync(async (req: Request, res: Response) => {
 });
 const updateSeries = catchAsync(async (req: Request, res: Response) => {
   const payload = { ...req.body };
+
+  if (req.files) {
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    if (files['trailerFile']) payload.trailerUrl = (files['trailerFile'][0] as any).location || files['trailerFile'][0].path;
+    if (files['posterFile']) payload.posterUrl = (files['posterFile'][0] as any).location || files['posterFile'][0].path;
+  }
 
   const result = await ContentService.updateSeriesInDB(
     req.params.seriesId,

@@ -166,12 +166,20 @@ router.get(
 router.post(
   '/series',
   auth(USER_ROLES.SUPER_ADMIN),
+  upload.fields([
+    { name: 'posterFile', maxCount: 1 },
+    { name: 'trailerFile', maxCount: 1 },
+  ]),
   ContentController.createSeries,
 );
 
 router.patch(
   '/series/:seriesId',
   auth(USER_ROLES.SUPER_ADMIN),
+  upload.fields([
+    { name: 'posterFile', maxCount: 1 },
+    { name: 'trailerFile', maxCount: 1 },
+  ]),
   ContentController.updateSeries,
 );
 
